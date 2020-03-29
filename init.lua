@@ -28,6 +28,12 @@ dofile(grunds.path..'/mapgen.lua')
 c_tree = minetest.get_content_id("default:tree")
 c_leaves = minetest.get_content_id("default:leaves")
 
+
+-- Add two random numbers, make it a bit gaussian
+local function rnd()
+	return random() + random() - 1
+end
+
 -- Axis a vector with len 1 around which pos will be rotated by angle
 local function rotate(axis, angle, vect)
 	local c, s, c1 = cos(angle), sin(angle), 1 - cos(angle)
@@ -46,6 +52,68 @@ local function rotate(axis, angle, vect)
 			vect.y * (c1 * az * ay + s * ax) +
 			vect.z * (c1 * az * az + c),
 	}
+end
+
+local tree = {
+	rotate_each_node_by = pi/2,
+	rotate_each_node_by_rnd = pi/10,
+	branch_yaw_rnd = pi/10,
+	branch_pitch_rnd = pi/10,
+	branch_len_rnd = 0.1,
+	shares = {
+		[1] = { 1, 1, 1, 1, 1 },
+		[6] = { 5, 5, 1 },
+		[8] = { 2, 7, 1 },
+		[10] = { 1 },
+	},
+	shares_rnd = 2,
+}
+
+local function get_shares(thickness)
+	local sh1, t1, sh2, t2
+	for t, sh in pairs(tree.shares) do
+		if t < thickness and (t1 == nil or t1 < t) then
+			t1 = t
+			sh1 = sh
+		end
+		if t > thickness and (t2 == nil or t2 > t) then
+			t2 = t
+			sh2 = sh
+		end
+	end
+
+	local sh = {}
+	local factor
+	if not t1 then
+		factor = 1
+	end
+	if not t2 then
+		factor = 0
+	end
+	if t1 and t2 then
+		factor = (thickness - t1)/(t2 - t1)
+	end
+
+	local num = sh1 and #sh1 or 0
+	if sh2 and #sh2 > num then num = #sh2 end
+	local sum = 0
+
+	for i = 1, num do
+		local n1 = sh1 and sh1[i] or 0
+		local n2 = sh2 and sh2[i] or 0
+		local s = n1 + (n2 - n1) * factor + tree.shares_rnd * rnd()
+		if s > 0 then
+			sh[#sh + 1] = s
+			sum = sum + s
+		end
+	end
+
+	-- Normalize
+	for i = 1, #sh do
+		sh[i] = sh[i] / sum
+	end
+
+	return sh
 end
 
 local function grund(center)
@@ -94,19 +162,27 @@ local function grund(center)
 		end
 
 		-- Choose divisions
-		shares = { 0.3, 0.7 }
+		local shares = get_shares(thickness)
 
 		-- Make branches
-		local yaw = 2 * pi * random() -- TODO: possibility of a specific rotation
+		local yaw = tree.rotate_each_node_by +
+			rnd() * tree.rotate_each_node_by_rnd
+
 		local dir1 = vector.normalize(dir)
 
 		for _, share in ipairs(shares) do
-			yaw = yaw + 2 * pi / #shares + (random() - 0.5) * 0.1
-			local pitch = (1 - share) * pi * 0.5
+
+			yaw = yaw + 2 * pi / #shares +
+				rnd() * tree.branch_yaw_rnd
+			local pitch = (1 - share)*(1 - share) * pi * 0.5 +
+				rnd() * tree.branch_pitch_rnd
+			local len = (share + 1) * 0.5 +
+				rnd() * tree.branch_len_rnd
+
 			local newrotax = rotate(dir1, yaw, rotax)
 			local newdir = vector.multiply(
-				rotate(newrotax, pitch, dir),
-				share + (random() - 0.5) * 0.1)
+				rotate(newrotax, pitch, dir), len)
+
 			grow(newpos, newrotax, newdir, length, thickness * share)
 		end
 	end
