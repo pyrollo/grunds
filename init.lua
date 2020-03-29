@@ -19,7 +19,7 @@
 grunds = {}
 
 local pi, cos, sin = math.pi, math.cos, math.sin
-local abs, max = math.abs, math.max
+local abs, max, random = math.abs, math.max, math.random
 
 local pi2 = pi / 2
 
@@ -55,9 +55,8 @@ local function rotate(axis, angle, origin, pos)
 	}
 end
 
-local function grund()
+local function grund(center)
 
-	local center = { x = 0, y = 0, z = 0 }
 	local minp = { x = center.x - 50, y = center.y, z = center.z - 50 }
 	local maxp = { x = center.x + 50, y = center.y + 100, z = center.z + 50 }
 	local manip = minetest.get_voxel_manip()
@@ -94,10 +93,21 @@ local function grund()
 	local function grow(pos, rotax, dir)
 		local dir1 = vector.normalize(dir)
 
-		for i = 1, 4 do
-			local newrotax = rotate(dir1, 2*pi*i/4, o0, rotax)
+		n = 1
+		while (n < 5 and random() > 0.3) do
+			n = n + 1
+		end
+
+		local yaw = 2 * pi * random()
+
+		for i = 1, n do
+			yaw = yaw + 2 * pi / n + (random() - 0.5) * 0.1
+ 			local pitch = (n - 1) * pi / 8 + (random() - 0.5) * 0.03
+			local len = 0.6 + (random() - 0.5) * 0.1
+
+			local newrotax = rotate(dir1, yaw, o0, rotax)
 			local newdir = vector.multiply(
-				rotate(newrotax, pi/8, o0, dir), 0.6)
+				rotate(newrotax, pitch, o0, dir), len)
 			local newpos = vector.add(pos, newdir)
 			line (pos, newpos)
 			if vector.length(newdir) > 5 then
@@ -115,5 +125,13 @@ end
 minetest.register_chatcommand("g", {
 	params = "",
 	description = "Grund !",
-	func = grund
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, "Player not found"
+		end
+		local center = player:get_pos()
+		center.y = 0
+		grund(center)
+	end
 })
