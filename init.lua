@@ -17,14 +17,11 @@
 --]]
 
 grunds = {}
+grunds.name = minetest.get_current_modname()
+grunds.path = minetest.get_modpath(minetest.get_current_modname())
 
 local pi, cos, sin = math.pi, math.cos, math.sin
 local abs, max, random = math.abs, math.max, math.random
-
-local pi2 = pi / 2
-
-grunds.name = minetest.get_current_modname()
-grunds.path = minetest.get_modpath(minetest.get_current_modname())
 
 dofile(grunds.path..'/mapgen.lua')
 
@@ -32,26 +29,22 @@ c_tree = minetest.get_content_id("default:tree")
 c_leaves = minetest.get_content_id("default:leaves")
 
 -- Axis a vector with len 1 around which pos will be rotated by angle
-local function rotate(axis, angle, origin, pos)
+local function rotate(axis, angle, vect)
 	local c, s, c1 = cos(angle), sin(angle), 1 - cos(angle)
 	local ax, ay, az = axis.x, axis.y, axis.z
-	local px, py, pz = pos.x - origin.x, pos.y - origin.y, pos.z - origin.z
 	return {
 		x =
-			px * (c1 * ax * ax + c) +
-			py * (c1 * ax * ay - s * az) +
-			pz * (c1 * ax * az + s * ay) +
-			origin.x,
+			vect.x * (c1 * ax * ax + c) +
+			vect.y * (c1 * ax * ay - s * az) +
+			vect.z * (c1 * ax * az + s * ay),
 		y =
-			px * (c1 * ay * ax + s * az) +
-			py * (c1 * ay * ay + c) +
-			pz * (c1 * ay * az - s * ax) +
-			origin.y,
+			vect.x * (c1 * ay * ax + s * az) +
+			vect.y * (c1 * ay * ay + c) +
+			vect.z * (c1 * ay * az - s * ax),
 		z =
-			px * (c1 * az * ax - s * ay) +
-			py * (c1 * az * ay + s * ax) +
-			pz * (c1 * az * az + c) +
-			origin.z,
+			vect.x * (c1 * az * ax - s * ay) +
+			vect.y * (c1 * az * ay + s * ax) +
+			vect.z * (c1 * az * az + c),
 	}
 end
 
@@ -88,35 +81,37 @@ local function grund(center)
 		plot(p2, c_leaves)
 	end
 
-	local o0 = { x = 0, y = 0, z = 0 }
+	local function grow(pos, rotax, dir, length, thickness)
+		length = length + vector.length(dir)
 
-	local function grow(pos, rotax, dir)
-		local dir1 = vector.normalize(dir)
+		-- Draw branch
+		local newpos = vector.add(pos, dir)
+		line (pos, newpos)
 
-		n = 1
-		while (n < 5 and random() > 0.3) do
-			n = n + 1
+		-- Branch end
+		if thickness < 1 then
+			return
 		end
 
-		local yaw = 2 * pi * random()
+		-- Choose divisions
+		shares = { 0.3, 0.7 }
 
-		for i = 1, n do
-			yaw = yaw + 2 * pi / n + (random() - 0.5) * 0.1
- 			local pitch = (n - 1) * pi / 8 + (random() - 0.5) * 0.03
-			local len = 0.6 + (random() - 0.5) * 0.1
+		-- Make branches
+		local yaw = 2 * pi * random() -- TODO: possibility of a specific rotation
+		local dir1 = vector.normalize(dir)
 
-			local newrotax = rotate(dir1, yaw, o0, rotax)
+		for _, share in ipairs(shares) do
+			yaw = yaw + 2 * pi / #shares + (random() - 0.5) * 0.1
+			local pitch = (1 - share) * pi * 0.5
+			local newrotax = rotate(dir1, yaw, rotax)
 			local newdir = vector.multiply(
-				rotate(newrotax, pitch, o0, dir), len)
-			local newpos = vector.add(pos, newdir)
-			line (pos, newpos)
-			if vector.length(newdir) > 5 then
-				grow(newpos, newrotax, newdir)
-			end
+				rotate(newrotax, pitch, dir),
+				share + (random() - 0.5) * 0.1)
+			grow(newpos, newrotax, newdir, length, thickness * share)
 		end
 	end
 
-	grow(center, { x = 0, y = 0, z = 1}, { x = 0, y = 30, z = 0})
+	grow(center, { x = 0, y = 0, z = 1}, { x = 0, y = 20, z = 0}, 0, 10)
 
 	manip:set_data(data)
 	manip:write_to_map()
