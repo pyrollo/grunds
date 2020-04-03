@@ -51,14 +51,13 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 		for x = minp.x, maxp.x do
 			vmiy = vmix
 			for y = minp.y, maxp.y do
-				if y > 0 then
-					mapdata[vmiy] = c_air
-				end
-				if y == 0 then
-					mapdata[vmiy] = c_grass
-				end
-				if y < 0 then
-					mapdata[vmiy] = c_dirt
+				if mapdata[vmiy] == c_air then
+					if y == 0 then
+						mapdata[vmiy] = c_grass
+					end
+					if y < 0 then
+						mapdata[vmiy] = c_dirt
+					end
 				end
 				vmiy = vmiy + yinc
 			end

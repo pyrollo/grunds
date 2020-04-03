@@ -34,6 +34,61 @@ local function rnd()
 	return random() + random() - 1
 end
 
+local function segmentPoint(s, t)
+	return {
+		x = s.v.x * t + s.p.x,
+		y = s.v.y * t + s.p.y,
+		z = s.v.z * t + s.p.z
+	}
+end
+
+local function newSegment(p1, p2, th)
+	if p1.x == p2.x and p1.y == p2.y and p1.z == p2.z then
+		return nil
+	end
+	local s = {
+		th = th,
+		p = table.copy(p1),
+		v = vector.subtract(p2, p1),
+	}
+
+	-- Square of the vector lenght
+	s.d2 = s.v.x * s.v.x + s.v.y * s.v.y + s.v.z * s.v.z
+	-- inverse (used in segmentNearestPoint)
+	s.invd2 = 1 / s.d2
+
+
+	-- Bounding box including thickness
+	s.minp, s.maxp = vector.sort(p1, p2)
+	local d = math.sqrt(th)
+	s.minp = vector.add(s.minp, -d)
+	s.maxp = vector.add(s.maxp, d)
+
+	return s
+end
+
+local function segmentNearestPoint(s, p)
+	local t = s.invd2 * (
+			s.v.x * (p.x - s.p.x) +
+			s.v.y * (p.y - s.p.y) +
+			s.v.z * (p.z - s.p.z)
+		)
+	if t < 0 then t = 0 end
+	if t > 1 then t = 1 end
+	return {
+		x = s.v.x * t + s.p.x,
+		y = s.v.y * t + s.p.y,
+		z = s.v.z * t + s.p.z
+	}
+end
+
+local function inSegmentBox(s, p)
+	return
+		p.x > s.minp.x and p.x < s.maxp.x and
+		p.y > s.minp.y and p.y < s.maxp.y and
+		p.z > s.minp.z and p.z < s.maxp.z
+end
+
 -- Axis a vector with len 1 around which pos will be rotated by angle
 local function rotate(axis, angle, vect)
 	local c, s, c1 = cos(angle), sin(angle), 1 - cos(angle)
@@ -55,6 +110,17 @@ local function rotate(axis, angle, vect)
 end
 
 local tree = {
+	-- Start pitch random. If 0, tree will start perfectly vertical
+	start_pitch_rnd = pi/20,
+
+	-- Start length (value + random) Lenght of the first segment
+	start_length = 20,
+	start_length_rnd = 10,
+
+	-- Start thickness factor (value + random)
+	start_thickness = 1.5, -- 1 = same as lenght
+	start_thickness_rnd = 0.5,
+
 	rotate_each_node_by = pi/2,
 	rotate_each_node_by_rnd = pi/10,
 	branch_yaw_rnd = pi/10,
@@ -62,10 +128,10 @@ local tree = {
 	branch_len_rnd = 0.1,
 	shares = {
 		[1] = { 1, 1, 1, 1, 1 },
-		[6] = { 5, 5, 1 },
-		[8] = { 2, 7, 1 },
-		[10] = { 1 },
-	},
+		[8] = { 5, 5, 1 },
+		[15] = { 5, 7, 1 },
+		[40] = { 1, 10 },
+	}, -- TODO : Adapt to starting thickness (could be 0 to 1)
 	shares_rnd = 2,
 }
 
@@ -117,7 +183,6 @@ local function get_shares(thickness)
 end
 
 local function grund(center)
-
 	local minp = { x = center.x - 50, y = center.y, z = center.z - 50 }
 	local maxp = { x = center.x + 50, y = center.y + 100, z = center.z + 50 }
 	local manip = minetest.get_voxel_manip()
@@ -125,36 +190,14 @@ local function grund(center)
 	local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
 	local data = manip:get_data()
 
-	local function plot(p, cid)
-		local i = area:indexp({
-			x = math.floor(p.x + 0.5),
-			y = math.floor(p.y + 0.5),
-			z = math.floor(p.z + 0.5),
-		})
-		if area:containsi(i) then
-			data[i] = cid
-		end
-	end
+	local segments = {}
 
-	local function line(p1, p2)
-		local p = table.copy(p1)
-		local v = vector.subtract(p2, p1)
-		local f = math.ceil(math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)))
-		v = vector.divide(v, f)
-		for _ = 1,f do
-			plot(p, c_tree)
-			p = vector.add(p, v)
-		end
-		plot(p1, c_leaves)
-		plot(p2, c_leaves)
-	end
+	-- TODO : add a counter limitation
+	local function grow(pos, rotax, dir, thickness)
 
-	local function grow(pos, rotax, dir, length, thickness)
-		length = length + vector.length(dir)
-
-		-- Draw branch
+		-- Add branch
 		local newpos = vector.add(pos, dir)
-		line (pos, newpos)
+		segments[#segments+1] = newSegment(pos, newpos, thickness)
 
 		-- Branch end
 		if thickness < 1 then
@@ -183,14 +226,84 @@ local function grund(center)
 			local newdir = vector.multiply(
 				rotate(newrotax, pitch, dir), len)
 
-			grow(newpos, newrotax, newdir, length, thickness * share)
+			grow(newpos, newrotax, newdir, thickness * share)
 		end
 	end
 
-	grow(center, { x = 0, y = 0, z = 1}, { x = 0, y = 20, z = 0}, 0, 10)
+	-- Start conditions
+
+	-- Random orientation
+	local rotax = rotate({ x = 0, y = 1, z = 0}, math.random() * pi * 2, { x = 0, y = 0, z = 1})
+
+
+	-- Length and thickness
+	local lenght = tree.start_length + tree.start_length_rnd * rnd()
+	local thickness = lenght*(tree.start_thickness + tree.start_thickness_rnd * rnd())
+
+	-- Start with some pitch and given lenght
+	local dir = rotate(rotax, tree.start_pitch_rnd * rnd(), { x = 0, y = 1, z = 0})
+	dir = vector.multiply(dir, tree.start_length + tree.start_length_rnd * rnd())
+
+	grow(center, rotax, dir, thickness)
+print("Segments", #segments)
+
+	for z = minp.z, maxp.z do
+		for y = minp.y, maxp.y do
+			local i = area:index(minp.x, y, z)
+			for x = minp.x, maxp.x do
+				local p = {x=x, y=y, z=z}
+				for _, s in ipairs(segments) do
+					if (inSegmentBox(s, p)) then
+						local pp = segmentNearestPoint(s, p)
+						local v = vector.subtract(p, pp)
+						if (v.x*v.x + v.y*v.y + v.z*v.z) < s.th then
+							data[i] = c_tree
+							break
+						end
+					end
+				end
+				i = i + 1
+			end
+		end
+	end
 
 	manip:set_data(data)
 	manip:write_to_map()
+end
+
+
+
+
+local function test(center)
+
+	local minp = { x = center.x - 50, y = center.y, z = center.z - 50 }
+	local maxp = { x = center.x + 50, y = center.y + 100, z = center.z + 50 }
+	local manip = minetest.get_voxel_manip()
+	local e1, e2 = manip:read_from_map(minp, maxp)
+	local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
+	local data = manip:get_data()
+
+
+	local segment = newSegment(
+		{ x = center.x,  y = center.y + 10, z = center.z },
+		{ x = center.x + 5,  y = center.y + 40, z = center.z +3 })
+
+	for z = minp.z, maxp.z do
+		for y = minp.y, maxp.y do
+			local i = area:index(minp.x, y, z)
+			for x = minp.x, maxp.x do
+				local p = {x=x, y=y, z=z}
+				local pp = segmentNearestPoint(segment, p)
+				if vector.distance(p, pp) < 5 then
+					data[i] = c_tree
+				end
+				i = i + 1
+			end
+		end
+	end
+
+	manip:set_data(data)
+	manip:write_to_map(true)
 end
 
 minetest.register_chatcommand("g", {
@@ -201,8 +314,14 @@ minetest.register_chatcommand("g", {
 		if not player then
 			return false, "Player not found"
 		end
-		local center = player:get_pos()
-		center.y = 0
+		local pos = player:get_pos()
+		local center = {
+			x = math.floor(pos.x),
+			y = 0,
+			z = math.floor(pos.z),
+		}
+
+--		grund(center)
 		grund(center)
 	end
 })
