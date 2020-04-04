@@ -30,7 +30,7 @@ local abs, max, random = math.abs, math.max, math.random
 c_air = minetest.get_content_id("air")
 c_bark = minetest.get_content_id("grunds:bark")
 c_wood = minetest.get_content_id("grunds:tree")
-c_leaves = minetest.get_content_id("default:leaves")
+c_leaves = minetest.get_content_id("grunds:leaves")
 
 
 local tree = {
@@ -61,6 +61,24 @@ local tree = {
 -- Add two random numbers, make it a bit gaussian
 local function rnd()
 	return random() + random() - 1
+end
+
+-- Check if a position is in a bounding box (works for segments and tufts)
+local function inBox(b, p)
+	return
+		p.x > b.minp.x and p.x < b.maxp.x and
+		p.y > b.minp.y and p.y < b.maxp.y and
+		p.z > b.minp.z and p.z < b.maxp.z
+end
+
+local function newTuft(p, r)
+	return {
+		p = p,
+		radius = r,
+		r2 = r * r,
+		minp = vector.subtract(p, r),
+		maxp = vector.add(p, r),
+	}
 end
 
 local function segmentPoint(s, t)
@@ -112,13 +130,6 @@ end
 
 local function segmentThickness(s, t)
 	return s.th + s.thinc * t
-end
-
-local function inSegmentBox(s, p)
-	return
-		p.x > s.minp.x and p.x < s.maxp.x and
-		p.y > s.minp.y and p.y < s.maxp.y and
-		p.z > s.minp.z and p.z < s.maxp.z
 end
 
 -- Axis a vector with len 1 around which pos will be rotated by angle
@@ -204,6 +215,7 @@ local function grund(center)
 	p.start('segments')
 
 	local segments = {}
+	local tufts = {}
 
 	-- TODO : add a counter limitation
 	local function grow(pos, rotax, dir, oldthinkness, thickness)
@@ -213,7 +225,8 @@ local function grund(center)
 		segments[#segments+1] = newSegment(pos, newpos, oldthinkness, thickness)
 
 		-- Branch end
-		if thickness < 1 then
+		if thickness < 0.5 then
+			tufts[#tufts + 1] = newTuft(vector.add(pos, dir), 10)
 			return
 		end
 
@@ -232,8 +245,9 @@ local function grund(center)
 				rnd() * tree.branch_yaw_rnd
 			local pitch = (1 - share)*(1 - share) * pi * 0.5 +
 				rnd() * tree.branch_pitch_rnd
-			local len = (share + 1) * 0.5 +
-				rnd() * tree.branch_len_rnd
+--			local len = (share + 1) * 0.5 +
+--				rnd() * tree.branch_len_rnd
+			local len = 0.8 + rnd() * tree.branch_len_rnd + 0.1 / thickness
 
 			local newrotax = rotate(dir1, yaw, rotax)
 			local newdir = vector.multiply(
@@ -261,7 +275,8 @@ local function grund(center)
 	grow(center, rotax, dir, thickness * 1.1, thickness)
 	p.stop('segments')
 
-print("Segments", #segments)
+	print("Segments", #segments)
+	print("Tufts", #tufts)
 
 	p.start('rendering')
 
@@ -272,7 +287,7 @@ print("Segments", #segments)
 				local p = {x=x, y=y, z=z}
 				local diff
 				for _, s in ipairs(segments) do
-					if (inSegmentBox(s, p)) then
+					if (inBox(s, p)) then
 						local t = segmentNearestParam(s, p)
 						local np = segmentPoint(s, t)
 						local th = segmentThickness(s, t)
@@ -291,6 +306,16 @@ print("Segments", #segments)
 						data[i] = c_bark
 					else
 						data[i] = c_wood
+					end
+				else
+					for _, t in ipairs(tufts) do
+						if (inBox(t, p)) then
+							local v = vector.subtract(p, t.p)
+							local d = v.x*v.x + v.y*v.y + v.z*v.z
+							if d < t.r2 and math.random() > 0.9 then
+								data[i] = c_leaves
+							end
+						end
 					end
 				end
 

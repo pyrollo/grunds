@@ -40,3 +40,16 @@ minetest.register_node("grunds:tree", {
 	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
 	sounds = default.node_sound_wood_defaults(),
 })
+
+minetest.register_node("grunds:leaves", {
+	description = S("Grunds Leaves"),
+	drawtype = "allfaces_optional",
+	waving = 1,
+	tiles = {"default_leaves.png"},
+	special_tiles = {"default_leaves_simple.png"},
+	paramtype = "light",
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2, leaves = 1},
+	sounds = default.node_sound_leaves_defaults(),
+})
