@@ -29,7 +29,8 @@ local abs, max, random = math.abs, math.max, math.random
 
 c_air = minetest.get_content_id("air")
 c_bark = minetest.get_content_id("grunds:bark")
-c_wood = minetest.get_content_id("grunds:tree")
+c_wood_1 = minetest.get_content_id("grunds:tree_1")
+c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
 
 
@@ -305,7 +306,11 @@ local function grund(center)
 					if diff < 1 then
 						data[i] = c_bark
 					else
-						data[i] = c_wood
+						if (diff % 2 > 1) then
+							data[i] = c_wood_1
+						else
+							data[i] = c_wood_2
+						end
 					end
 				else
 					for _, t in ipairs(tufts) do

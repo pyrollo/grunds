@@ -33,9 +33,17 @@ minetest.register_node("grunds:bark_moisty_3", {
 	sounds = default.node_sound_wood_defaults(),
 })
 
-minetest.register_node("grunds:tree", {
+minetest.register_node("grunds:tree_1", {
 	description = S("Grund wood"),
 	tiles = {"grunds_wood_1.png"},
+	is_ground_content = false,
+	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	sounds = default.node_sound_wood_defaults(),
+})
+
+minetest.register_node("grunds:tree_2", {
+	description = S("Grund wood"),
+	tiles = {"grunds_wood_2.png"},
 	is_ground_content = false,
 	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
 	sounds = default.node_sound_wood_defaults(),
