@@ -24,8 +24,9 @@ local p = dofile(grunds.path .. "/profile.lua")
 dofile(grunds.path .. "/nodes.lua")
 dofile(grunds.path .. "/mapgen.lua")
 
-local pi, cos, sin = math.pi, math.cos, math.sin
+local pi, cos, sin, sqrt = math.pi, math.cos, math.sin, math.sqrt
 local abs, max, random = math.abs, math.max, math.random
+local vsubtract = vector.subtract
 
 c_air = minetest.get_content_id("air")
 c_bark = minetest.get_content_id("grunds:bark")
@@ -64,12 +65,83 @@ local function rnd()
 	return random() + random() - 1
 end
 
--- Check if a position is in a bounding box (works for segments and tufts)
-local function inBox(b, p)
+--[[
+Geometric formulas
+==================
+
+-- LINES --
+
+Spatial representation of a straight line [#1]:
+{
+	x = vx * t + px
+	y = vy * t + py
+	z = vz * t + pz
+}
+
+t is the "parameter". (x, y, z) is on line if a t exists.
+(vx, vy, vz) is a vector along the line direction.
+(px, py, pz) is one of the line point.
+
+This gives coordinates of point from parameter.
+
+-- SEGMENTS --
+
+Our segments are quite simple if we take starting point as (px, py, pz) and
+segment vector (from start to end) as (vx, vy, vz).
+
+The segment is constitued of every point for t from 0.0 to 1.0.
+
+-- NEAREST POINT --
+
+To determine the parameter of nearest point of line to position (x0, y0, z0) is
+given by :
+	t = (vx, vy, vz) * ((x0, y0, z0) - (px, py, pz)) / len((vx, vy, vz))
+
+	t = (vx * (x0 - px) + vy * (y0 - py) + vz * (z0 + pz)) / (vx² + vy² +vz²)
+
+	Quotient is not depending on (x0, y0, z0) so it can be computed once
+	when creating segment. Final formula is [#2] :
+
+	t = (vx * (x0 - px) + vy * (y0 - py) + vz * (z0 + pz)) * k
+
+	with k = 1 / (vx² + vy² +vz²)
+
+-- THICKNESS --
+
+Thickness is a simple linear variation from one end of the segment to the other.
+Formula has this form [#3]:
+
+	thickness = thickness1 * t + (thickness2 - thickness1)
+
+Thickness is something like a surface. It is compared to square distances.
+
+-- DISTANCE --
+
+Distance between (x1, y1, z1) and (x2, y2, z2) is given by :
+	d = squareroot( (x2-x1)² + (y2-y1)² + (z2-z1)² )
+
+To avoid useless calculation, square distance is used as much as possible. For
+example, comparing two distances is the same as comparing their squares.
+
+]]
+
+
+local function interCoord(objects, coord, value)
+	local result = {}
+	for i = 1, #objects do
+		if objects[i].minp[coord] <= value and
+				objects[i].maxp[coord] >= value then
+			result[#result + 1] = objects[i]
+		end
+	end
+	return result
+end
+
+local function intersects(b, minp, maxp)
 	return
-		p.x > b.minp.x and p.x < b.maxp.x and
-		p.y > b.minp.y and p.y < b.maxp.y and
-		p.z > b.minp.z and p.z < b.maxp.z
+		b.minp.x <= maxp.x and b.maxp.x >= minp.y and
+		b.minp.y <= maxp.y and b.maxp.y >= minp.y and
+		b.minp.z <= maxp.z and b.maxp.z >= minp.z
 end
 
 local function newTuft(p, r)
@@ -79,14 +151,6 @@ local function newTuft(p, r)
 		r2 = r * r,
 		minp = vector.subtract(p, r),
 		maxp = vector.add(p, r),
-	}
-end
-
-local function segmentPoint(s, t)
-	return {
-		x = s.v.x * t + s.p.x,
-		y = s.v.y * t + s.p.y,
-		z = s.v.z * t + s.p.z
 	}
 end
 
@@ -113,24 +177,6 @@ local function newSegment(p1, p2, th1, th2)
 	s.maxp = vector.add(s.maxp, d)
 
 	return s
-end
-
-local function segmentNearestParam(s, p)
-	-- Determine parameter t corresponding to nearest point
-	local t = s.invd2 * (
-			s.v.x * (p.x - s.p.x) +
-			s.v.y * (p.y - s.p.y) +
-			s.v.z * (p.z - s.p.z)
-		)
-	-- Limited to segment itself
-	if t < 0 then t = 0 end
-	if t > 1 then t = 1 end
-
-	return t
-end
-
-local function segmentThickness(s, t)
-	return s.th + s.thinc * t
 end
 
 -- Axis a vector with len 1 around which pos will be rotated by angle
@@ -219,25 +265,22 @@ local function grund(center)
 	local tufts = {}
 
 	-- TODO : add a counter limitation
-	local function grow(pos, rotax, dir, oldthinkness, thickness)
-
-		-- Add branch
-		local newpos = vector.add(pos, dir)
-		segments[#segments+1] = newSegment(pos, newpos, oldthinkness, thickness)
+	local function grow(pos, rotax, dir, thickness)
 
 		-- Branch end
 		if thickness < 0.5 then
-			tufts[#tufts + 1] = newTuft(vector.add(pos, dir), 10)
+			tufts[#tufts + 1] = newTuft(vector.add(pos, dir), 8)
 			return
 		end
 
 		-- Choose divisions
 		local shares = get_shares(thickness)
 
-		-- Make branches
+		-- Rotate around branch axe
 		local yaw = tree.rotate_each_node_by +
 			rnd() * tree.rotate_each_node_by_rnd
 
+		-- Make branches
 		local dir1 = vector.normalize(dir)
 
 		for _, share in ipairs(shares) do
@@ -254,26 +297,35 @@ local function grund(center)
 			local newdir = vector.multiply(
 				rotate(newrotax, pitch, dir), len)
 
-			grow(newpos, newrotax, newdir, thickness, thickness * share)
+			local newpos = vector.add(pos, dir)
+			local newthickness = thickness * share
+			segments[#segments+1] = newSegment(pos, newpos, thickness, newthickness)
+
+			grow(newpos, newrotax, newdir, newthickness)
 		end
 	end
 
 	-- Start conditions
+	-------------------
 
-	-- Random orientation
+	-- Random yaw
 	local rotax = rotate({ x = 0, y = 1, z = 0}, math.random() * pi * 2, { x = 0, y = 0, z = 1})
-
 
 	-- Length and thickness
 	local lenght = tree.start_length + tree.start_length_rnd * rnd()
 	local thickness = lenght*(tree.start_thickness + tree.start_thickness_rnd * rnd())
 	print("Start length:", lenght)
 	print("Start thickness:", thickness)
+
 	-- Start with some pitch and given lenght
 	local dir = rotate(rotax, tree.start_pitch_rnd * rnd(), { x = 0, y = 1, z = 0})
 	dir = vector.multiply(dir, tree.start_length + tree.start_length_rnd * rnd())
 
-	grow(center, rotax, dir, thickness * 1.1, thickness)
+	-- First (trunk) segment
+	local pos = vector.add(center, dir)
+	segments[#segments+1] = newSegment(center, pos, thickness * 1.1, thickness)
+
+	grow(pos, rotax, dir, thickness)
 	p.stop('segments')
 
 	print("Segments", #segments)
@@ -281,50 +333,97 @@ local function grund(center)
 
 	p.start('rendering')
 
+	local maxdiff, t, np, th, vx, vy, vz ,d, dif, s, vmi
+	local sv, sp, svx, svy, svz, spx, spy, spz
+	local segmentsz, segmentszy, tuftsz, tuftszy
 	for z = minp.z, maxp.z do
+		-- Limit to items which intesects z
+		segmentsz = interCoord(segments, "z", z)
+		tuftsz = interCoord(tufts, "z", z)
+
 		for y = minp.y, maxp.y do
-			local i = area:index(minp.x, y, z)
+			-- Limit to items which intesects y
+			segmentszy = interCoord(segmentsz, "y", y)
+			tuftszy = interCoord(tuftsz, "y", y)
+			vmi = area:index(minp.x, y, z)
 			for x = minp.x, maxp.x do
-				local p = {x=x, y=y, z=z}
-				local diff
-				for _, s in ipairs(segments) do
-					if (inBox(s, p)) then
-						local t = segmentNearestParam(s, p)
-						local np = segmentPoint(s, t)
-						local th = segmentThickness(s, t)
-						local v = vector.subtract(p, np)
-						local d = v.x*v.x + v.y*v.y + v.z*v.z
+				-- In this loop every thing has to be as optimized
+				-- as possible. This uses less function calls and
+				-- table lookups as possible.
+				maxdiff = nil
+				for index = 1, #segmentszy do
+					s = segmentszy[index]
+					if s.minp.x <= x and s.maxp.x >= x then
+						sv, sp = s.v, s.p
+						svx, svy, svz = sv.x, sv.y, sv.z
+						spx, spy, spz = sp.x, sp.y, sp.z
+
+						-- Get nearest segment param ([#2])
+						t = s.invd2 * (
+							svx * (x - spx) +
+							svy * (y - spy) +
+							svz * (z - spz))
+
+						-- Limited to segment itself
+						if t < 0 then t = 0 end
+						if t > 1 then t = 1 end
+
+						-- Vector between current pos
+						-- and nearest segment point ([#1] + subtract)
+						vx = x - svx * t - spx
+						vy = y - svy * t - spy
+						vz = z - svz * t - spz
+
+						-- Square length of this vector ([#4])
+						d = vx * vx + vy * vy + vz * vz
+
+						-- Thickness for the given t ([#3])
+						th = s.th + s.thinc * t
+
+						-- Now do the test
 						if d < th then
-							local dif = math.sqrt(th) - math.sqrt(d)
-							if not diff or (dif > diff) then
-								diff = dif
-							end
-						end
-					end
-				end
-				if diff then
-					if diff < 1 then
-						data[i] = c_bark
-					else
-						if (diff % 2 > 1) then
-							data[i] = c_wood_1
-						else
-							data[i] = c_wood_2
-						end
-					end
-				else
-					for _, t in ipairs(tufts) do
-						if (inBox(t, p)) then
-							local v = vector.subtract(p, t.p)
-							local d = v.x*v.x + v.y*v.y + v.z*v.z
-							if d < t.r2 and math.random() > 0.9 then
-								data[i] = c_leaves
+							-- Get more precise for inside trunc stuff
+							dif = sqrt(th) - sqrt(d)
+							if not maxdiff or (dif > maxdiff) then
+								maxdiff = dif
 							end
 						end
 					end
 				end
 
-				i = i + 1
+				-- Maxdiff is the maximum distance from outside
+				if maxdiff then
+					if maxdiff < 1 then
+						data[vmi] = c_bark
+					else
+						if (maxdiff % 2 > 1) then
+							data[vmi] = c_wood_1
+						else
+							data[vmi] = c_wood_2
+						end
+					end
+				else
+					for _, t in ipairs(tuftszy) do
+						if t.minp.x <= x and t.maxp.x >= x then
+							-- Vector between tuft center and current pos
+							vx = x - t.p.x
+							vy = y - t.p.y
+							vz = z - t.p.z
+
+							-- Square length of this vector ([#4])
+							d = vx*vx + vy*vy + vz*vz
+
+							-- Now do the test
+							if d < t.r2 then
+								if random() > 0.9 then
+									data[vmi] = c_leaves
+								end
+							end
+						end
+					end
+				end
+
+				vmi = vmi + 1
 			end
 		end
 	end
@@ -335,41 +434,6 @@ local function grund(center)
 	p.stop('voxelmanip')
 	p.stop('total')
 	p.show()
-end
-
-
-
-
-local function test(center)
-
-	local minp = { x = center.x - 50, y = center.y, z = center.z - 50 }
-	local maxp = { x = center.x + 50, y = center.y + 100, z = center.z + 50 }
-	local manip = minetest.get_voxel_manip()
-	local e1, e2 = manip:read_from_map(minp, maxp)
-	local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
-	local data = manip:get_data()
-
-
-	local segment = newSegment(
-		{ x = center.x,  y = center.y + 10, z = center.z },
-		{ x = center.x + 5,  y = center.y + 40, z = center.z +3 })
-
-	for z = minp.z, maxp.z do
-		for y = minp.y, maxp.y do
-			local i = area:index(minp.x, y, z)
-			for x = minp.x, maxp.x do
-				local p = {x=x, y=y, z=z}
-				local pp = segmentNearestPoint(segment, p)
-				if vector.distance(p, pp) < 5 then
-					data[i] = c_tree
-				end
-				i = i + 1
-			end
-		end
-	end
-
-	manip:set_data(data)
-	manip:write_to_map(true)
 end
 
 minetest.register_chatcommand("g", {
