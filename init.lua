@@ -34,29 +34,35 @@ c_wood_1 = minetest.get_content_id("grunds:tree_1")
 c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
 
-
 local tree = {
 	-- Start pitch random. If 0, tree will start perfectly vertical
 	start_pitch_rnd = pi/20,
 
-	-- Start length (value + random) Lenght of the first segment
-	start_length = 20,
-	start_length_rnd = 5,
-
-	-- Start thickness factor (value + random)
-	start_thickness = 2, -- 1 = same as lenght
-	start_thickness_rnd = 0.5,
+	-- Start thickness of first (trunk) segment (value + random)
+	start_thickness = 100,
+	start_thickness_rnd = 20,
 
 	rotate_each_node_by = pi/2,
 	rotate_each_node_by_rnd = pi/10,
 	branch_yaw_rnd = pi/10,
+
+	branch_pitch = 5*pi/8, -- pi/2,
 	branch_pitch_rnd = pi/10,
-	branch_len_rnd = 0.1,
-	shares = {
-		[1] = { 1, 1 },
-		[100] = {1, 1 },
-	}, -- TODO : Adapt to starting thickness (could be 0 to 1)
-	shares_rnd = 0.2, -- TODO : Should have same effect whatever share numbers
+
+	branch_len_min = 5,
+	branch_len_factor = 2,
+	branch_len_factor_rnd = 1,
+	branches = {
+		{ thickness = 10, random = 2 },
+		{ thickness = 10, random = 10},
+--		{ thickness = 0, random = 1},
+	},
+
+	-- Radius of each tuft
+	tuft_radius = 9,
+
+	-- Density (0.0 = no leaves, 1.0 = all leaves)
+	tuft_density = 0.1,
 }
 
 
@@ -125,7 +131,6 @@ example, comparing two distances is the same as comparing their squares.
 
 ]]
 
-
 local function interCoord(objects, coord, value)
 	local result = {}
 	for i = 1, #objects do
@@ -144,30 +149,46 @@ local function intersects(b, minp, maxp)
 		b.minp.z <= maxp.z and b.maxp.z >= minp.z
 end
 
-local function newTuft(p, r)
+-- Create a new tuft and pre-compute as much as possible
+local function newTuft(center, radius)
 	return {
-		p = p,
-		radius = r,
-		r2 = r * r,
-		minp = vector.subtract(p, r),
-		maxp = vector.add(p, r),
+		-- Bounding box
+		minp = vector.subtract(center, radius),
+		maxp = vector.add(center, radius),
+
+		-- Center point
+		p = center,
+
+		-- Radius and square radius
+		radius = radius,
+		r2 = radius * radius,
 	}
 end
 
+-- Create a new segment and pre-compute as much as possible
 local function newSegment(p1, p2, th1, th2)
 	if p1.x == p2.x and p1.y == p2.y and p1.z == p2.z then
-		return nil
+		return nil -- Not a segment
 	end
 	local s = {
+		-- Bounding box
+		--minp = See below
+		--maxp = See below
+
+		-- Starting thickness and thickness increment
 		th = th1,
 		thinc = th2 - th1,
+
+		-- Starting point
 		p = table.copy(p1),
+		-- Vector to ending point
 		v = vector.subtract(p2, p1),
 	}
 
 	-- Square of the vector lenght
 	s.d2 = s.v.x * s.v.x + s.v.y * s.v.y + s.v.z * s.v.z
-	-- inverse (used in segmentNearestPoint)
+
+	-- Its inverse (used in segmentNearestPoint)
 	s.invd2 = 1 / s.d2
 
 	-- Bounding box including thickness
@@ -199,60 +220,15 @@ local function rotate(axis, angle, vect)
 	}
 end
 
-local function get_shares(thickness)
-	local sh1, t1, sh2, t2
-	for t, sh in pairs(tree.shares) do
-		if t < thickness and (t1 == nil or t1 < t) then
-			t1 = t
-			sh1 = sh
-		end
-		if t > thickness and (t2 == nil or t2 > t) then
-			t2 = t
-			sh2 = sh
-		end
-	end
-
-	local sh = {}
-	local factor
-	if not t1 then
-		factor = 1
-	end
-	if not t2 then
-		factor = 0
-	end
-	if t1 and t2 then
-		factor = (thickness - t1)/(t2 - t1)
-	end
-
-	local num = sh1 and #sh1 or 0
-	if sh2 and #sh2 > num then num = #sh2 end
-	local sum = 0
-
-	for i = 1, num do
-		local n1 = sh1 and sh1[i] or 0
-		local n2 = sh2 and sh2[i] or 0
-		local s = n1 + (n2 - n1) * factor + tree.shares_rnd * rnd()
-		if s > 0 then
-			sh[#sh + 1] = s
-			sum = sum + s
-		end
-	end
-
-	-- Normalize
-	for i = 1, #sh do
-		sh[i] = sh[i] / sum
-	end
-
-	return sh
-end
-
 local function grund(center)
+
+	-- TODO: use math.randomseed(pos)
 
 	p.init()
 	p.start('total')
 	p.start('voxelmanip')
-	local minp = { x = center.x - 50, y = center.y, z = center.z - 50 }
-	local maxp = { x = center.x + 50, y = center.y + 100, z = center.z + 50 }
+	local minp = { x = center.x - 80, y = center.y, z = center.z - 80 }
+	local maxp = { x = center.x + 80, y = center.y + 160, z = center.z + 80 }
 	local manip = minetest.get_voxel_manip()
 	local e1, e2 = manip:read_from_map(minp, maxp)
 	local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
@@ -265,43 +241,66 @@ local function grund(center)
 	local tufts = {}
 
 	-- TODO : add a counter limitation
-	local function grow(pos, rotax, dir, thickness)
+	-- rotax and dir MUST be normalized
+	local function grow(pos, rotax, dir, length, thickness)
 
-		-- Branch end
-		if thickness < 0.5 then
-			tufts[#tufts + 1] = newTuft(vector.add(pos, dir), 8)
-			return
+		local sum = 0
+		local branches = {}
+		-- Choose divisions
+		-- Randomize
+		for _, branch in ipairs(tree.branches) do
+			local thickness = branch.thickness +
+				branch.random * rnd()
+			if thickness > 0 then
+				branches[#branches + 1] = thickness
+				sum = sum + thickness
+			end
 		end
 
-		-- Choose divisions
-		local shares = get_shares(thickness)
+		-- Normalize
+		for i = 1, #branches do
+			branches[i] = branches[i] / sum
+		end
 
 		-- Rotate around branch axe
 		local yaw = tree.rotate_each_node_by +
 			rnd() * tree.rotate_each_node_by_rnd
 
 		-- Make branches
-		local dir1 = vector.normalize(dir)
+		for _, part in ipairs(branches) do
 
-		for _, share in ipairs(shares) do
+			-- Next len and thickness
+			local newthickness = part * thickness
+			local newlength = math.log(newthickness + 1)
+				* (tree.branch_len_factor  +
+					rnd() * tree.branch_len_factor_rnd)
+				+ tree.branch_len_min
 
-			yaw = yaw + 2 * pi / #shares +
-				rnd() * tree.branch_yaw_rnd
-			local pitch = (1 - share)*(1 - share) * pi * 0.5 +
-				rnd() * tree.branch_pitch_rnd
---			local len = (share + 1) * 0.5 +
---				rnd() * tree.branch_len_rnd
-			local len = 0.8 + rnd() * tree.branch_len_rnd + 0.1 / thickness
+			-- Put branches evenly around 360°
+			yaw = yaw + 2 * pi / #branches +
+					rnd() * tree.branch_yaw_rnd
 
-			local newrotax = rotate(dir1, yaw, rotax)
-			local newdir = vector.multiply(
-				rotate(newrotax, pitch, dir), len)
+			local pitch = (1 - part) * (1 - part)
+					* (tree.branch_pitch +
+					rnd() * tree.branch_pitch_rnd)
 
-			local newpos = vector.add(pos, dir)
-			local newthickness = thickness * share
-			segments[#segments+1] = newSegment(pos, newpos, thickness, newthickness)
+			local newrotax = rotate(dir, yaw, rotax)
+			local newdir = rotate(newrotax, pitch, dir)
 
-			grow(newpos, newrotax, newdir, newthickness)
+			local newpos = vector.add(pos,
+					vector.multiply(newdir, newlength))
+
+			segments[ #segments + 1 ] =
+					newSegment(pos, newpos, thickness, newthickness)
+
+			if newthickness < 0.5 or newlength < tree.branch_len_min then
+				-- Branch ends
+				tufts[ #tufts + 1 ] = newTuft(newpos, tree.tuft_radius)
+			else
+				-- Branch continues
+				grow(newpos, newrotax, newdir, newlength, newthickness)
+			end
+
 		end
 	end
 
@@ -311,21 +310,22 @@ local function grund(center)
 	-- Random yaw
 	local rotax = rotate({ x = 0, y = 1, z = 0}, math.random() * pi * 2, { x = 0, y = 0, z = 1})
 
-	-- Length and thickness
-	local lenght = tree.start_length + tree.start_length_rnd * rnd()
-	local thickness = lenght*(tree.start_thickness + tree.start_thickness_rnd * rnd())
-	print("Start length:", lenght)
-	print("Start thickness:", thickness)
-
 	-- Start with some pitch and given lenght
 	local dir = rotate(rotax, tree.start_pitch_rnd * rnd(), { x = 0, y = 1, z = 0})
-	dir = vector.multiply(dir, tree.start_length + tree.start_length_rnd * rnd())
+
+	-- Length and thickness
+	local thickness = tree.start_thickness + tree.start_thickness_rnd * rnd()
+	local length = math.log(thickness)
+		* tree.branch_len_factor + tree.branch_len_min
+
+	print("Start length:", length)
+	print("Start thickness:", thickness)
 
 	-- First (trunk) segment
-	local pos = vector.add(center, dir)
-	segments[#segments+1] = newSegment(center, pos, thickness * 1.1, thickness)
+	local pos = vector.add(center, vector.multiply(dir, length))
+	segments[1] = newSegment(center, pos, thickness, thickness)
 
-	grow(pos, rotax, dir, thickness)
+	grow(pos, rotax, dir, length, thickness)
 	p.stop('segments')
 
 	print("Segments", #segments)
@@ -333,6 +333,7 @@ local function grund(center)
 
 	p.start('rendering')
 
+	local tuft_density = tree.tuft_density
 	local maxdiff, t, np, th, vx, vy, vz ,d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
 	local segmentsz, segmentszy, tuftsz, tuftszy
@@ -415,7 +416,7 @@ local function grund(center)
 
 							-- Now do the test
 							if d < t.r2 then
-								if random() > 0.9 then
+								if random() < tuft_density then
 									data[vmi] = c_leaves
 								end
 							end
