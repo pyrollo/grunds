@@ -22,11 +22,11 @@ grunds.path = minetest.get_modpath(minetest.get_current_modname())
 
 local p = dofile(grunds.path .. "/profile.lua")
 dofile(grunds.path .. "/nodes.lua")
+dofile(grunds.path .. "/tree.lua")
 dofile(grunds.path .. "/mapgen.lua")
 
-local pi, cos, sin, sqrt = math.pi, math.cos, math.sin, math.sqrt
-local abs, max, random = math.abs, math.max, math.random
-local vsubtract = vector.subtract
+local pi, sqrt = math.pi, math.sqrt
+local max, random = math.max, math.random
 
 c_air = minetest.get_content_id("air")
 c_bark = minetest.get_content_id("grunds:bark")
@@ -34,7 +34,7 @@ c_wood_1 = minetest.get_content_id("grunds:tree_1")
 c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
 
-local tree = {
+local treeparam = {
 	-- Start pitch random. If 0, tree will start perfectly vertical
 	start_pitch_rnd = pi/20,
 
@@ -64,12 +64,6 @@ local tree = {
 	-- Density (0.0 = no leaves, 1.0 = all leaves)
 	tuft_density = 0.1,
 }
-
-
--- Add two random numbers, make it a bit gaussian
-local function rnd()
-	return random() + random() - 1
-end
 
 --[[
 Geometric formulas
@@ -142,84 +136,6 @@ local function interCoord(objects, coord, value)
 	return result
 end
 
-local function intersects(b, minp, maxp)
-	return
-		b.minp.x <= maxp.x and b.maxp.x >= minp.y and
-		b.minp.y <= maxp.y and b.maxp.y >= minp.y and
-		b.minp.z <= maxp.z and b.maxp.z >= minp.z
-end
-
--- Create a new tuft and pre-compute as much as possible
-local function newTuft(center, radius)
-	return {
-		-- Bounding box
-		minp = vector.subtract(center, radius),
-		maxp = vector.add(center, radius),
-
-		-- Center point
-		p = center,
-
-		-- Radius and square radius
-		radius = radius,
-		r2 = radius * radius,
-	}
-end
-
--- Create a new segment and pre-compute as much as possible
-local function newSegment(p1, p2, th1, th2)
-	if p1.x == p2.x and p1.y == p2.y and p1.z == p2.z then
-		return nil -- Not a segment
-	end
-	local s = {
-		-- Bounding box
-		--minp = See below
-		--maxp = See below
-
-		-- Starting thickness and thickness increment
-		th = th1,
-		thinc = th2 - th1,
-
-		-- Starting point
-		p = table.copy(p1),
-		-- Vector to ending point
-		v = vector.subtract(p2, p1),
-	}
-
-	-- Square of the vector lenght
-	s.d2 = s.v.x * s.v.x + s.v.y * s.v.y + s.v.z * s.v.z
-
-	-- Its inverse (used in segmentNearestPoint)
-	s.invd2 = 1 / s.d2
-
-	-- Bounding box including thickness
-	s.minp, s.maxp = vector.sort(p1, p2)
-	local d = math.sqrt(math.max(th1, th2))
-	s.minp = vector.add(s.minp, -d)
-	s.maxp = vector.add(s.maxp, d)
-
-	return s
-end
-
--- Axis a vector with len 1 around which pos will be rotated by angle
-local function rotate(axis, angle, vect)
-	local c, s, c1 = cos(angle), sin(angle), 1 - cos(angle)
-	local ax, ay, az = axis.x, axis.y, axis.z
-	return {
-		x =
-			vect.x * (c1 * ax * ax + c) +
-			vect.y * (c1 * ax * ay - s * az) +
-			vect.z * (c1 * ax * az + s * ay),
-		y =
-			vect.x * (c1 * ay * ax + s * az) +
-			vect.y * (c1 * ay * ay + c) +
-			vect.z * (c1 * ay * az - s * ax),
-		z =
-			vect.x * (c1 * az * ax - s * ay) +
-			vect.y * (c1 * az * ay + s * ax) +
-			vect.z * (c1 * az * az + c),
-	}
-end
-
 local function grund(center)
 
 	-- TODO: use math.randomseed(pos)
@@ -235,105 +151,19 @@ local function grund(center)
 	local data = manip:get_data()
 	p.stop('voxelmanip')
 
-	p.start('segments')
+	p.start('maketree')
+	local tree = grunds.make_tree(center, treeparam, minp, maxp)
+	p.stop('maketree')
 
-	local segments = {}
-	local tufts = {}
-
-	-- TODO : add a counter limitation
-	-- rotax and dir MUST be normalized
-	local function grow(pos, rotax, dir, length, thickness)
-
-		local sum = 0
-		local branches = {}
-		-- Choose divisions
-		-- Randomize
-		for _, branch in ipairs(tree.branches) do
-			local thickness = branch.thickness +
-				branch.random * rnd()
-			if thickness > 0 then
-				branches[#branches + 1] = thickness
-				sum = sum + thickness
-			end
-		end
-
-		-- Normalize
-		for i = 1, #branches do
-			branches[i] = branches[i] / sum
-		end
-
-		-- Rotate around branch axe
-		local yaw = tree.rotate_each_node_by +
-			rnd() * tree.rotate_each_node_by_rnd
-
-		-- Make branches
-		for _, part in ipairs(branches) do
-
-			-- Next len and thickness
-			local newthickness = part * thickness
-			local newlength = math.log(newthickness + 1)
-				* (tree.branch_len_factor  +
-					rnd() * tree.branch_len_factor_rnd)
-				+ tree.branch_len_min
-
-			-- Put branches evenly around 360°
-			yaw = yaw + 2 * pi / #branches +
-					rnd() * tree.branch_yaw_rnd
-
-			local pitch = (1 - part) * (1 - part)
-					* (tree.branch_pitch +
-					rnd() * tree.branch_pitch_rnd)
-
-			local newrotax = rotate(dir, yaw, rotax)
-			local newdir = rotate(newrotax, pitch, dir)
-
-			local newpos = vector.add(pos,
-					vector.multiply(newdir, newlength))
-
-			segments[ #segments + 1 ] =
-					newSegment(pos, newpos, thickness, newthickness)
-
-			if newthickness < 0.5 or newlength < tree.branch_len_min then
-				-- Branch ends
-				tufts[ #tufts + 1 ] = newTuft(newpos, tree.tuft_radius)
-			else
-				-- Branch continues
-				grow(newpos, newrotax, newdir, newlength, newthickness)
-			end
-
-		end
-	end
-
-	-- Start conditions
-	-------------------
-
-	-- Random yaw
-	local rotax = rotate({ x = 0, y = 1, z = 0}, math.random() * pi * 2, { x = 0, y = 0, z = 1})
-
-	-- Start with some pitch and given lenght
-	local dir = rotate(rotax, tree.start_pitch_rnd * rnd(), { x = 0, y = 1, z = 0})
-
-	-- Length and thickness
-	local thickness = tree.start_thickness + tree.start_thickness_rnd * rnd()
-	local length = math.log(thickness)
-		* tree.branch_len_factor + tree.branch_len_min
-
-	print("Start length:", length)
-	print("Start thickness:", thickness)
-
-	-- First (trunk) segment
-	local pos = vector.add(center, vector.multiply(dir, length))
-	segments[1] = newSegment(center, pos, thickness, thickness)
-
-	grow(pos, rotax, dir, length, thickness)
-	p.stop('segments')
+	local segments = tree.segments
+	local tufts = tree.tufts
 
 	print("Segments", #segments)
 	print("Tufts", #tufts)
 
 	p.start('rendering')
 
-	local tuft_density = tree.tuft_density
+	local tuft_density = tree.params.tuft_density
 	local maxdiff, t, np, th, vx, vy, vz ,d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
 	local segmentsz, segmentszy, tuftsz, tuftszy
