@@ -35,34 +35,75 @@ c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
 
 local treeparam = {
-	-- Start pitch random. If 0, tree will start perfectly vertical
-	start_pitch_rnd = pi/20,
 
-	-- Start thickness of first (trunk) segment (value + random)
-	start_thickness = 100,
-	start_thickness_rnd = 20,
+	trunk = {
+		-- Trunk pitch random. If 0, trunk will start perfectly vertical
+		pitch_rnd = pi/15,
 
-	rotate_each_node_by = pi/2,
-	rotate_each_node_by_rnd = pi/10,
-	branch_yaw_rnd = pi/10,
+		-- Trunk thickness (value + random) this will give thickness for
+		-- branches and roots
+		thickness = 150,
+		thickness_rnd = 20,
+		thickness_factor = 0.8, -- Factor between base and top thickness
+		thickness_factor_rnd = 0.1,
 
-	branch_pitch = 5*pi/8, -- pi/2,
-	branch_pitch_rnd = pi/10,
+		altitude = 5,
+		altitude_rnd = 5,
 
-	branch_len_min = 5,
-	branch_len_factor = 2,
-	branch_len_factor_rnd = 1,
-	branches = {
-		{ thickness = 10, random = 2 },
-		{ thickness = 10, random = 10},
---		{ thickness = 0, random = 1},
+		length_min = 5,
+		length_factor = 4,
+		length_factor_rnd = 1,
 	},
 
-	-- Radius of each tuft
-	tuft_radius = 9,
+	branches = {
+		rotate_each_node_by = pi/2,
+		rotate_each_node_by_rnd = pi/10,
 
-	-- Density (0.0 = no leaves, 1.0 = all leaves)
-	tuft_density = 0.1,
+		yaw_rnd = pi/10,
+
+		pitch = 5*pi/8, -- pi/2,
+		pitch_rnd = pi/10,
+
+		lenght_min = 5,
+		lenght_factor = 2,
+		lenght_factor_rnd = 1,
+
+		thinckess_min = 0.5,
+
+		splits = {
+			{ thickness = 10, random = 2 },
+			{ thickness = 10, random = 10 },
+	--		{ thickness = 0, random = 1},
+		},
+
+		tuft = {
+			radius = 9,
+			density = 0.1,
+		}
+	},
+
+	roots = {
+		rotate_each_node_by = pi/2,
+		rotate_each_node_by_rnd = pi/10,
+
+		yaw_rnd = pi/10,
+
+		pitch = pi/2,
+		pitch_rnd = pi/10,
+
+		lenght_min = 5,
+		lenght_factor = 3,
+		lenght_factor_rnd = 0.5,
+
+		thinckess_min = 2,
+
+		splits = {
+			{ thickness = 10, random = 5 },
+			{ thickness = 10, random = 5 },
+			{ thickness = 10, random = 5 },
+		},
+	},
+
 }
 
 --[[
@@ -152,6 +193,7 @@ local function grund(center)
 	p.stop('voxelmanip')
 
 	p.start('maketree')
+--	center.y = 50
 	local tree = grunds.make_tree(center, treeparam, minp, maxp)
 	p.stop('maketree')
 
@@ -163,7 +205,6 @@ local function grund(center)
 
 	p.start('rendering')
 
-	local tuft_density = tree.params.tuft_density
 	local maxdiff, t, np, th, vx, vy, vz ,d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
 	local segmentsz, segmentszy, tuftsz, tuftszy
@@ -224,7 +265,7 @@ local function grund(center)
 
 				-- Maxdiff is the maximum distance from outside
 				if maxdiff then
-					if maxdiff < 1 then
+					if maxdiff < 1.1 then
 						data[vmi] = c_bark
 					else
 						if (maxdiff % 2 > 1) then
@@ -237,16 +278,16 @@ local function grund(center)
 					for _, t in ipairs(tuftszy) do
 						if t.minp.x <= x and t.maxp.x >= x then
 							-- Vector between tuft center and current pos
-							vx = x - t.p.x
-							vy = y - t.p.y
-							vz = z - t.p.z
+							vx = x - t.center.x
+							vy = y - t.center.y
+							vz = z - t.center.z
 
 							-- Square length of this vector ([#4])
 							d = vx*vx + vy*vy + vz*vz
 
 							-- Now do the test
-							if d < t.r2 then
-								if random() < tuft_density then
+							if d < t.radius2 then
+								if random() < t.density then
 									data[vmi] = c_leaves
 								end
 							end

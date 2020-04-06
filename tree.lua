@@ -7,18 +7,21 @@ local function rnd()
 end
 
 -- Create a new tuft and pre-compute as much as possible
-local function new_tuft(center, radius)
+local function new_tuft(center, radius, density)
 	return {
 		-- Bounding box
 		minp = vector.subtract(center, radius),
 		maxp = vector.add(center, radius),
 
 		-- Center point
-		p = center,
+		center = center,
+
+		-- Density
+		density = density,
 
 		-- Radius and square radius
 		radius = radius,
-		r2 = radius * radius,
+		radius2 = radius * radius,
 	}
 end
 
@@ -91,24 +94,24 @@ function grunds.make_tree(startpos, params, minp, maxp)
 
 	-- TODO : add a counter limitation
 	-- rotax and dirax MUST be normalized
-	local function grow(pos, rotax, dirax, length, thickness)
+	local function grow(params, pos, rotax, dirax, length, thickness)
 
 		local sum = 0
-		local branches = {}
+		local splits = {}
 		-- Choose divisions
 		-- Randomize
-		for _, branch in ipairs(params.branches) do
-			local thickness = branch.thickness +
-				branch.random * rnd()
+		for _, split in ipairs(params.splits) do
+			local thickness = split.thickness +
+				split.random * rnd()
 			if thickness > 0 then
-				branches[#branches + 1] = thickness
+				splits[#splits + 1] = thickness
 				sum = sum + thickness
 			end
 		end
 
 		-- Normalize
-		for i = 1, #branches do
-			branches[i] = branches[i] / sum
+		for i = 1, #splits do
+			splits[i] = splits[i] / sum
 		end
 
 		-- Rotate around branch axe
@@ -116,23 +119,23 @@ function grunds.make_tree(startpos, params, minp, maxp)
 			rnd() * params.rotate_each_node_by_rnd
 
 		-- Make branches
-		for _, part in ipairs(branches) do
+		for _, split in ipairs(splits) do
 			-- Put branches evenly around 360°
-			yaw = yaw + 2 * pi / #branches +
-					rnd() * params.branch_yaw_rnd
+			yaw = yaw + 2 * pi / #splits +
+					rnd() * params.yaw_rnd
 
-			local pitch = (1 - part) * (1 - part)
-					* (params.branch_pitch +
-					rnd() * params.branch_pitch_rnd)
+			local pitch = (1 - split) * (1 - split)
+					* (params.pitch +
+					rnd() * params.pitch_rnd)
 
 			-- All "next" values are named "value"2
 
 			-- Next len and thickness
-			local thickness2 = part * thickness
+			local thickness2 = split * thickness
 			local length2 = math.log(thickness2 + 1)
-				* (params.branch_len_factor  +
-					rnd() * params.branch_len_factor_rnd)
-				+ params.branch_len_min
+				* (params.lenght_factor  +
+					rnd() * params.lenght_factor_rnd)
+				+ params.lenght_min
 
 			-- New axes
 			local rotax2 = rotate(dirax, yaw, rotax)
@@ -147,39 +150,52 @@ function grunds.make_tree(startpos, params, minp, maxp)
 				segments[ #segments + 1 ] = segment
 			end
 
-			if thickness2 < 0.5 or length2 < params.branch_len_min then
+			if thickness2 < params.thinckess_min
+					or length2 < params.lenght_min then
 				-- Branch ends
-				local tuft = new_tuft(pos2, params.tuft_radius)
-				if intersects(tuft, minp, maxp) then
-					tufts[ #tufts + 1 ] = tuft
+				if params.tuft then
+					local tuft = new_tuft(pos2, params.tuft.radius, params.tuft.density)
+					if intersects(tuft, minp, maxp) then
+						tufts[ #tufts + 1 ] = tuft
+					end
 				end
 			else
 				-- Branch continues
-				grow(pos2, rotax2, dirax2, length2, thickness2)
+				grow(params, pos2, rotax2, dirax2, length2, thickness2)
 			end
 
 		end
 	end
 
-	-- Start conditions
-	-------------------
+	-- Trunk
+	--------
+	local trunk = params.trunk
+	startpos.y = startpos.y + trunk.altitude + trunk.altitude_rnd * rnd()
 
 	-- Random yaw
 	local rotax = rotate({ x = 0, y = 1, z = 0}, math.random() * pi * 2, { x = 0, y = 0, z = 1})
 
 	-- Start with some pitch and given lenght
-	local dirax = rotate(rotax, params.start_pitch_rnd * rnd(), { x = 0, y = 1, z = 0})
+	local dirax = rotate(rotax, trunk.pitch_rnd * rnd(), { x = 0, y = 1, z = 0})
 
 	-- Length and thickness
-	local thickness = params.start_thickness + params.start_thickness_rnd * rnd()
-	local length = math.log(thickness)
-		* params.branch_len_factor + params.branch_len_min
+	local thickness = trunk.thickness + trunk.thickness_rnd * rnd()
+	local thickness_top = thickness *
+		(trunk.thickness_factor + trunk.thickness_factor_rnd * rnd())
 
-	-- First (trunk) segment
+	local length = math.log(thickness) * trunk.length_factor + trunk.length_min
+
+	-- Segment
 	local pos = vector.add(startpos, vector.multiply(dirax, length))
-	segments[1] = new_segment(startpos, pos, thickness, thickness)
+	segments[1] = new_segment(startpos, pos, thickness, thickness_top)
 
-	grow(pos, rotax, dirax, length, thickness)
+	-- Branches and roots
+	---------------------
+	grow(params.branches, pos, rotax, dirax, length, thickness_top)
+
+	-- Turn upside down
+	dirax = rotate(rotax, pi, { x = 0, y = 1, z = 0})
+	grow(params.roots, startpos, rotax, dirax, length, thickness)
 
 	return {
 		params = params,
