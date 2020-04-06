@@ -43,12 +43,12 @@ local treeparam = {
 		-- Trunk thickness (value + random) this will give thickness for
 		-- branches and roots
 		thickness = 150,
-		thickness_rnd = 20,
+		thickness_rnd = 40,
 		thickness_factor = 0.8, -- Factor between base and top thickness
 		thickness_factor_rnd = 0.1,
 
-		altitude = 5,
-		altitude_rnd = 5,
+		altitude = 10,
+		altitude_rnd = 10,
 
 		length_min = 5,
 		length_factor = 4,
@@ -61,14 +61,14 @@ local treeparam = {
 
 		yaw_rnd = pi/10,
 
-		pitch = 5*pi/8, -- pi/2,
+		pitch = pi,
 		pitch_rnd = pi/10,
 
 		lenght_min = 5,
 		lenght_factor = 2,
 		lenght_factor_rnd = 1,
 
-		thinckess_min = 0.5,
+		thinckess_min = 0.8,
 
 		splits = {
 			{ thickness = 10, random = 2 },
@@ -76,6 +76,7 @@ local treeparam = {
 	--		{ thickness = 0, random = 1},
 		},
 
+		gravity_effect = -0.2,
 		tuft = {
 			radius = 9,
 			density = 0.1,
@@ -88,7 +89,7 @@ local treeparam = {
 
 		yaw_rnd = pi/10,
 
-		pitch = pi/2,
+		pitch = 3*pi/4,
 		pitch_rnd = pi/10,
 
 		lenght_min = 5,
@@ -96,6 +97,8 @@ local treeparam = {
 		lenght_factor_rnd = 0.5,
 
 		thinckess_min = 2,
+
+		gravity_effect = 0.6,
 
 		splits = {
 			{ thickness = 10, random = 5 },

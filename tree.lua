@@ -141,6 +141,11 @@ function grunds.make_tree(startpos, params, minp, maxp)
 			local rotax2 = rotate(dirax, yaw, rotax)
 			local dirax2 = rotate(rotax2, pitch, dirax)
 
+			if (params.gravity_effect) then
+				dirax2 = vector.normalize(vector.add(dirax2,
+					{ x = 0, y = -params.gravity_effect, z = 0}))
+			end
+
 			local pos2 = vector.add(pos,
 					vector.multiply(dirax2, length2))
 
