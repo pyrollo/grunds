@@ -15,10 +15,30 @@
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --]]
-
 grunds = {}
 grunds.name = minetest.get_current_modname()
 grunds.path = minetest.get_modpath(minetest.get_current_modname())
+
+function file_exists(path)
+	local f=io.open(path,"r")
+	if f~=nil then
+		io.close(f)
+		return true
+	else
+		return false
+	end
+end
+
+-- Load mapgen specific functions and fails if not available
+local mg_name = minetest.get_mapgen_setting("mg_name")
+do
+	mgutil = grunds.path .. "/mgutil/" .. mg_name .. ".lua"
+	if not file_exists(mgutil) then
+		minetest.log("error", "Mod " .. grunds.name .. " is not avialable on mapgen "..mg_name..".")
+		return
+	end
+	grunds.getLevelAtPoint = dofile(mgutil)
+end
 
 local p = dofile(grunds.path .. "/profile.lua")
 dofile(grunds.path .. "/nodes.lua")
