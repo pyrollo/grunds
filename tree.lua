@@ -98,16 +98,8 @@ local function rotate(axis, angle, vect)
 	}
 end
 
-local function intersects(b, minp, maxp)
-	return
-		b.minp.x <= maxp.x and b.maxp.x >= minp.x and
-		b.minp.y <= maxp.y and b.maxp.y >= minp.y and
-		b.minp.z <= maxp.z and b.maxp.z >= minp.z
-end
-
-function grunds.make_tree(startpos, params, minp, maxp)
-
-	math.randomseed(grunds.baseseed + startpos.x + startpos.y * 1234 + startpos.z * 4567)
+function grunds.make_tree(startpos, params, seed)
+	if seed then math.randomseed(seed) end
 
 	local segments = {}
 	local tufts = {}
@@ -171,18 +163,14 @@ function grunds.make_tree(startpos, params, minp, maxp)
 
 			-- Create segment
 			local segment = new_segment(pos, pos2, thickness, thickness2)
-			if intersects(segment, minp, maxp) then
-				segments[ #segments + 1 ] = segment
-			end
+			segments[ #segments + 1 ] = segment
 
 			if thickness2 < params.thinckess_min
 					or length2 < params.lenght_min then
 				-- Branch ends
 				if params.tuft then
 					local tuft = new_tuft(pos2, params.tuft.radius, params.tuft.density)
-					if intersects(tuft, minp, maxp) then
-						tufts[ #tufts + 1 ] = tuft
-					end
+					tufts[ #tufts + 1 ] = tuft
 				end
 			else
 				-- Branch continues
@@ -227,4 +215,11 @@ function grunds.make_tree(startpos, params, minp, maxp)
 		segments = segments,
 		tufts = tufts,
 	}
+end
+
+function grunds.intersects(b, minp, maxp)
+	return
+		b.minp.x <= maxp.x and b.maxp.x >= minp.x and
+		b.minp.y <= maxp.y and b.maxp.y >= minp.y and
+		b.minp.z <= maxp.z and b.maxp.z >= minp.z
 end

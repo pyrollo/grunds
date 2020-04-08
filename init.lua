@@ -223,7 +223,7 @@ local function grund(center)
 
 	p.start('maketree')
 --	center.y = 50
-	local tree = grunds.make_tree(center, treeparam, minp, maxp)
+	local tree = grunds.make_tree(center, treeparam)
 	p.stop('maketree')
 
 	local segments = tree.segments
