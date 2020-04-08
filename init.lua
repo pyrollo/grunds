@@ -1,5 +1,5 @@
 --[[
-	Grunds MG - Grunds Map Generator for Minetest
+	Grunds - Giant trees biome for Minetest
 	(c) Pierre-Yves Rollo
 
 	This program is free software: you can redistribute it and/or modify
@@ -15,6 +15,7 @@
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --]]
+
 grunds = {}
 grunds.name = minetest.get_current_modname()
 grunds.path = minetest.get_modpath(minetest.get_current_modname())
@@ -40,8 +41,13 @@ do
 	grunds.getLevelAtPoint = dofile(mgutil)
 end
 
+-- Big int numbers are truncated by Lua, so adding small int to them results in
+-- the same number. Baseseed will be added with local seeds
+grunds.baseseed = minetest.get_mapgen_setting("seed") % (2^32)
+
 local p = dofile(grunds.path .. "/profile.lua")
 dofile(grunds.path .. "/nodes.lua")
+dofile(grunds.path .. "/distribute.lua")
 dofile(grunds.path .. "/tree.lua")
 dofile(grunds.path .. "/mapgen.lua")
 
@@ -207,7 +213,7 @@ local function grund(center)
 	p.init()
 	p.start('total')
 	p.start('voxelmanip')
-	local minp = { x = center.x - 80, y = center.y, z = center.z - 80 }
+	local minp = { x = center.x - 80, y = center.y - 20, z = center.z - 80 }
 	local maxp = { x = center.x + 80, y = center.y + 160, z = center.z + 80 }
 	local manip = minetest.get_voxel_manip()
 	local e1, e2 = manip:read_from_map(minp, maxp)
@@ -331,6 +337,9 @@ local function grund(center)
 	p.show()
 end
 
+local water_level = tonumber(minetest.get_mapgen_setting("water_level"))
+local min_level = water_level - 10
+
 minetest.register_chatcommand("g", {
 	params = "",
 	description = "Grund !",
@@ -342,11 +351,17 @@ minetest.register_chatcommand("g", {
 		local pos = player:get_pos()
 		local center = {
 			x = math.floor(pos.x),
-			y = 0,
 			z = math.floor(pos.z),
 		}
 
---		grund(center)
-		grund(center)
+		center.y = grunds.getLevelAtPoint(center.x, center.z)
+
+		if center.y and center.y > min_level then
+			if center.y < water_level then center.y = water_level end
+			grund(center)
+			return true, "Tree grown!"
+		else
+			return false, "Not a suitable position for growing a tree"
+		end
 	end
 })

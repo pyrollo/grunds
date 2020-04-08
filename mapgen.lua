@@ -9,20 +9,15 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 
 	-- Voxel manip indexes
 	local vmix, vmiy, vmiz
-	vmiz = area:index(minp.x, minp.y, minp.z)
+	points = grunds.distribute({x = minp.x, y = minp.z}, {x = maxp.x, y = maxp.z}, 100, 1, 20)
 
-	local n = 16
-	local nx = math.ceil((maxp.x - minp.x)/16)
-	local nz = math.ceil((maxp.z - minp.z)/16)
-
-	for zz = 1, nz do
-		for xx = 1, nx do
-			local x = minp.x + xx*16
-			local z = minp.z + zz*16
-			local y = grunds.getLevelAtPoint(x, z)
-			if y and y >= minp.y and y <= maxp.y then
-				data[area:index(x, y, z)] = c_mese
-			end
+	for i = 1, #points do
+		local p = points[i]
+		local x, z = p.x, p.y
+		local y = grunds.getLevelAtPoint(x, z)
+		if y and y >= minp.y and y <= maxp.y and z >= minp.z
+			and z <= maxp.z and x >= minp.x and x <= maxp.x then
+			data[area:index(x, y, z)] = c_mese
 		end
 	end
 

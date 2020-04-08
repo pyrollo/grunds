@@ -1,5 +1,5 @@
 --[[
-	Crater MG - Crater Map Generator for Minetest
+	Grunds - Giant trees biome for Minetest
 	(c) Pierre-Yves Rollo
 
 	This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,6 @@
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --]]
-
 
 c_air    = minetest.get_content_id("air")
 c_grass  = minetest.get_content_id("default:dirt_with_grass")
