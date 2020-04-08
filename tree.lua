@@ -1,3 +1,21 @@
+--[[
+	Grunds - Giant trees biome for Minetest
+	(c) Pierre-Yves Rollo
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Lesser General Public License as published
+	by the Free Software Foundation, either version 2.1 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+--]]
+
 local pi, cos, sin, sqrt = math.pi, math.cos, math.sin, math.sqrt
 local max, random = math.max, math.random
 
@@ -82,12 +100,14 @@ end
 
 local function intersects(b, minp, maxp)
 	return
-		b.minp.x <= maxp.x and b.maxp.x >= minp.y and
+		b.minp.x <= maxp.x and b.maxp.x >= minp.x and
 		b.minp.y <= maxp.y and b.maxp.y >= minp.y and
 		b.minp.z <= maxp.z and b.maxp.z >= minp.z
 end
 
 function grunds.make_tree(startpos, params, minp, maxp)
+
+	math.randomseed(grunds.baseseed + startpos.x + startpos.y * 1234 + startpos.z * 4567)
 
 	local segments = {}
 	local tufts = {}
