@@ -1,5 +1,5 @@
 --[[
-	Crater MG - Crater Map Generator for Minetest
+	Grunds - Giant trees biome for Minetest
 	(c) Pierre-Yves Rollo
 
 	This program is free software: you can redistribute it and/or modify
