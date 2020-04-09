@@ -84,6 +84,8 @@ c_wood_1 = minetest.get_content_id("grunds:tree_1")
 c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
 
+local water_level = tonumber(minetest.get_mapgen_setting("water_level"))
+
 local treebuffer = {}
 local treebuffersize = 50 -- Keep 50 trees in buffer, avoids many computations
 -- TODO: Impement buffering emptying
@@ -99,7 +101,7 @@ local function inter_coord(objects, coord, value)
 	return result
 end
 
-local function render(segments, tufts, minp, maxp, data, area)
+function grunds.render(segments, tufts, minp, maxp, data, area)
 	local maxdiff, t, th, vx, vy, vz, d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
 	local segmentsz, segmentszy, tuftsz, tuftszy
@@ -197,7 +199,6 @@ local function render(segments, tufts, minp, maxp, data, area)
 	end
 end
 
-
 minetest.register_on_generated(function (minp, maxp, blockseed)
 
 	local segments = {}
@@ -217,8 +218,13 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 		if tree == nil then
 			local seed = grunds.baseseed + x + z * 65498
 			local y = grunds.getLevelAtPoint(x, z)
-			if y then
-				tree = grunds.make_tree({x=x, y=y,z=z}, treeparam, seed)
+
+			if y and y > water_level then
+				tree = grunds.make_tree({x=x, y=y, z=z}, treeparam, seed)
+			end
+
+			-- Bufferize
+			if tree then
 				treebuffer[x.." "..z] = tree
 			else
 				treebuffer[x.." "..z] = false
@@ -246,7 +252,7 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 	local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
 	local data = vm:get_data()
 	local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
-	render(segments, tufts, minp, maxp, data, area)
+	grunds.render(segments, tufts, minp, maxp, data, area)
 	vm:set_data(data)
 	vm:set_lighting( {day=0, night=0})
 	vm:calc_lighting()

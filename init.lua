@@ -195,151 +195,10 @@ example, comparing two distances is the same as comparing their squares.
 
 ]]
 
-local function interCoord(objects, coord, value)
-	local result = {}
-	for i = 1, #objects do
-		if objects[i].minp[coord] <= value and
-				objects[i].maxp[coord] >= value then
-			result[#result + 1] = objects[i]
-		end
-	end
-	return result
-end
-
-local function grund(center)
-
-	-- TODO: use math.randomseed(pos)
-
-	p.init()
-	p.start('total')
-	p.start('voxelmanip')
-	local minp = { x = center.x - 80, y = center.y - 20, z = center.z - 80 }
-	local maxp = { x = center.x + 80, y = center.y + 160, z = center.z + 80 }
-	local manip = minetest.get_voxel_manip()
-	local e1, e2 = manip:read_from_map(minp, maxp)
-	local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
-	local data = manip:get_data()
-	p.stop('voxelmanip')
-
-	p.start('maketree')
---	center.y = 50
-	local tree = grunds.make_tree(center, treeparam)
-	p.stop('maketree')
-
-	local segments = tree.segments
-	local tufts = tree.tufts
-
-	print("Segments", #segments)
-	print("Tufts", #tufts)
-
-	p.start('rendering')
-
-	local maxdiff, t, np, th, vx, vy, vz ,d, dif, s, vmi
-	local sv, sp, svx, svy, svz, spx, spy, spz
-	local segmentsz, segmentszy, tuftsz, tuftszy
-	for z = minp.z, maxp.z do
-		-- Limit to items which intesects z
-		segmentsz = interCoord(segments, "z", z)
-		tuftsz = interCoord(tufts, "z", z)
-
-		for y = minp.y, maxp.y do
-			-- Limit to items which intesects y
-			segmentszy = interCoord(segmentsz, "y", y)
-			tuftszy = interCoord(tuftsz, "y", y)
-			vmi = area:index(minp.x, y, z)
-			for x = minp.x, maxp.x do
-				-- In this loop every thing has to be as optimized
-				-- as possible. This uses less function calls and
-				-- table lookups as possible.
-				maxdiff = nil
-				for index = 1, #segmentszy do
-					s = segmentszy[index]
-					if s.minp.x <= x and s.maxp.x >= x then
-						sv, sp = s.v, s.p
-						svx, svy, svz = sv.x, sv.y, sv.z
-						spx, spy, spz = sp.x, sp.y, sp.z
-
-						-- Get nearest segment param ([#2])
-						t = s.invd2 * (
-							svx * (x - spx) +
-							svy * (y - spy) +
-							svz * (z - spz))
-
-						-- Limited to segment itself
-						if t < 0 then t = 0 end
-						if t > 1 then t = 1 end
-
-						-- Vector between current pos
-						-- and nearest segment point ([#1] + subtract)
-						vx = x - svx * t - spx
-						vy = y - svy * t - spy
-						vz = z - svz * t - spz
-
-						-- Square length of this vector ([#4])
-						d = vx * vx + vy * vy + vz * vz
-
-						-- Thickness for the given t ([#3])
-						th = s.th + s.thinc * t
-
-						-- Now do the test
-						if d < th then
-							-- Get more precise for inside trunc stuff
-							dif = sqrt(th) - sqrt(d)
-							if not maxdiff or (dif > maxdiff) then
-								maxdiff = dif
-							end
-						end
-					end
-				end
-
-				-- Maxdiff is the maximum distance from outside
-				if maxdiff then
-					if maxdiff < 1.1 then
-						data[vmi] = c_bark
-					else
-						if (maxdiff % 2 > 1) then
-							data[vmi] = c_wood_1
-						else
-							data[vmi] = c_wood_2
-						end
-					end
-				else
-					for _, t in ipairs(tuftszy) do
-						if t.minp.x <= x and t.maxp.x >= x then
-							-- Vector between tuft center and current pos
-							vx = x - t.center.x
-							vy = y - t.center.y
-							vz = z - t.center.z
-
-							-- Square length of this vector ([#4])
-							d = vx*vx + vy*vy + vz*vz
-
-							-- Now do the test
-							if d < t.radius2 then
-								if random() < t.density then
-									data[vmi] = c_leaves
-								end
-							end
-						end
-					end
-				end
-
-				vmi = vmi + 1
-			end
-		end
-	end
-	p.stop('rendering')
-	p.start('voxelmanip')
-	manip:set_data(data)
-	manip:write_to_map()
-	p.stop('voxelmanip')
-	p.stop('total')
-	p.show()
-end
 
 local water_level = tonumber(minetest.get_mapgen_setting("water_level"))
-local min_level = water_level - 10
 
+-- Test function
 minetest.register_chatcommand("g", {
 	params = "",
 	description = "Grund !",
@@ -356,12 +215,43 @@ minetest.register_chatcommand("g", {
 
 		center.y = grunds.getLevelAtPoint(center.x, center.z)
 
-		if center.y and center.y > min_level then
-			if center.y < water_level then center.y = water_level end
-			grund(center)
-			return true, "Tree grown!"
-		else
+		if center.y == nil then
 			return false, "Not a suitable position for growing a tree"
 		end
+		if center.y < water_level then center.y = water_level end
+
+		p.init()
+		p.start('total')
+		p.start('voxelmanip')
+		local minp = { x = center.x - 80, y = center.y - 20, z = center.z - 80 }
+		local maxp = { x = center.x + 80, y = center.y + 160, z = center.z + 80 }
+		local manip = minetest.get_voxel_manip()
+		local e1, e2 = manip:read_from_map(minp, maxp)
+		local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
+		local data = manip:get_data()
+		p.stop('voxelmanip')
+
+		p.start('maketree')
+	--	center.y = 50
+		local tree = grunds.make_tree(center, treeparam)
+		p.stop('maketree')
+
+		local segments = tree.segments
+		local tufts = tree.tufts
+
+		print("Segments", #segments)
+		print("Tufts", #tufts)
+
+		p.start('rendering')
+		grunds.render(segments, tufts, minp, maxp, data, area)
+		p.stop('rendering')
+		p.start('voxelmanip')
+		manip:set_data(data)
+		manip:write_to_map()
+		p.stop('voxelmanip')
+		p.stop('total')
+		p.show()
+
+		return true, "Tree grown!"
 	end
 })
