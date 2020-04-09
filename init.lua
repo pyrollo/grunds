@@ -49,6 +49,7 @@ local p = dofile(grunds.path .. "/profile.lua")
 dofile(grunds.path .. "/nodes.lua")
 dofile(grunds.path .. "/distribute.lua")
 dofile(grunds.path .. "/tree.lua")
+dofile(grunds.path .. "/biome.lua")
 dofile(grunds.path .. "/mapgen.lua")
 
 local pi, sqrt = math.pi, math.sqrt
