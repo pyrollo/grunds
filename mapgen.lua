@@ -139,18 +139,18 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 		s.root = s.type == "root" or s.type == "trunk"
 	end
 
-	for z = minp.z, maxp.z do -- 80 times loop
+	for x = minp.x, maxp.x do -- 80 times loop
 		-- Limit to items which intesects z
-		segmentsz = inter_coord(segments, "z", z)
-		tuftsz = inter_coord(tufts, "z", z)
+		segmentsx = inter_coord(segments, "x", x)
+		tuftsx = inter_coord(tufts, "x", x)
 
-		for y = minp.y, maxp.y do -- 640 times loop
+		for z = minp.z, maxp.z do -- 640 times loop
 			-- Limit to items which intesects y
-			segmentszy = inter_coord(segmentsz, "y", y)
-			tuftszy = inter_coord(tuftsz, "y", y)
-			vmi = area:index(minp.x, y, z)
+			segmentsxz = inter_coord(segmentsx, "z", z)
+			tuftsxz = inter_coord(tuftsx, "z", z)
+			vmi = area:index(x, maxp.y, z)
 
-			for x = minp.x, maxp.x do -- 5120 times loop
+			for y = maxp.y, minp.y, -1 do -- 5120 times loop
 
 				maxdiff = nil
 
@@ -162,13 +162,13 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 					cid == c_air or not def or
 					not def.is_ground_content
 
-				for index = 1, #segmentszy do -- 5120 * #segments times loop
+				for index = 1, #segmentsxz do -- 5120 * #segments times loop
 
 					-- In this loop every thing has to be as optimized
 					-- as possible. This uses less function calls and
 					-- table lookups as possible.
 
-					s = segmentszy[index]
+					s = segmentsxz[index]
 
 					if (branchok or s.root)
 							and s.minp.x <= x
@@ -224,7 +224,7 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 				else
 					-- Place leaves only in air
 					if data[vmi] == c_air then
-						for _, t in ipairs(tuftszy) do
+						for _, t in ipairs(tuftsxz) do
 							if t.minp.x <= x and t.maxp.x >= x then
 								-- Vector between tuft center and current pos
 								vx = x - t.center.x
@@ -246,7 +246,7 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 					end
 				end
 
-				vmi = vmi + 1
+				vmi = vmi - area.ystride
 			end
 		end
 	end
