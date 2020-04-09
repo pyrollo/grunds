@@ -1,6 +1,34 @@
 local pi, sqrt = math.pi, math.sqrt
 local max, random = math.max, math.random
 
+local res = minetest.register_biome({
+	name = "grunds",
+	node_top = "default:dirt_with_rainforest_litter",
+	depth_top = 1,
+	node_filler = "default:dirt",
+	depth_filler = 5,
+	node_riverbed = "default:sand",
+	depth_riverbed = 2,
+	node_dungeon = "default:desert_stone_block",
+	node_dungeon_alt = "default:desert_stone_brick",
+	node_dungeon_stair = "stairs:stair_desert_stone_block",
+	y_max = 31000,
+	y_min = 1,
+	heat_point = 55,
+	humidity_point = 70,
+})
+
+minetest.register_decoration({
+	name = "grunds:papyrus2",
+	biomes = {"grunds"},
+	deco_type = "simple",
+	place_on = {"default:dirt_with_rainforest_litter"},
+	height_max = 6,
+	fill_ratio = 0.5,
+	decoration = "default:papyrus",
+	height_max = 4,
+})
+
 local treeradius = 150 -- Have to look around if any far tree has branches in this chunk
 
 local treeparam = {
@@ -105,6 +133,12 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 	local maxdiff, t, th, vx, vy, vz, d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
 	local segmentsz, segmentszy, tuftsz, tuftszy
+
+	for i = 1, #segments do
+		s = segments[i]
+		s.root = s.type == "root" or s.type == "trunk"
+	end
+
 	for z = minp.z, maxp.z do -- 80 times loop
 		-- Limit to items which intesects z
 		segmentsz = inter_coord(segments, "z", z)
@@ -117,13 +151,28 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 			vmi = area:index(minp.x, y, z)
 
 			for x = minp.x, maxp.x do -- 5120 times loop
-				-- In this loop every thing has to be as optimized
-				-- as possible. This uses less function calls and
-				-- table lookups as possible.
+
 				maxdiff = nil
-				for index = 1, #segmentszy do
+
+				local cid = data[vmi]
+				local def = minetest.registered_nodes[
+					minetest.get_name_from_content_id(cid)]
+
+				local branchok =
+					cid == c_air or not def or
+					not def.is_ground_content
+
+				for index = 1, #segmentszy do -- 5120 * #segments times loop
+
+					-- In this loop every thing has to be as optimized
+					-- as possible. This uses less function calls and
+					-- table lookups as possible.
+
 					s = segmentszy[index]
-					if s.minp.x <= x and s.maxp.x >= x then
+
+					if (branchok or s.root)
+							and s.minp.x <= x
+							and s.maxp.x >= x then
 						sv, sp = s.v, s.p
 						svx, svy, svz = sv.x, sv.y, sv.z
 						spx, spy, spz = sp.x, sp.y, sp.z
@@ -173,20 +222,24 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 						end
 					end
 				else
-					for _, t in ipairs(tuftszy) do
-						if t.minp.x <= x and t.maxp.x >= x then
-							-- Vector between tuft center and current pos
-							vx = x - t.center.x
-							vy = y - t.center.y
-							vz = z - t.center.z
+					-- Place leaves only in air
+					if data[vmi] == c_air then
+						for _, t in ipairs(tuftszy) do
+							if t.minp.x <= x and t.maxp.x >= x then
+								-- Vector between tuft center and current pos
+								vx = x - t.center.x
+								vy = y - t.center.y
+								vz = z - t.center.z
 
-							-- Square length of this vector ([#4])
-							d = vx*vx + vy*vy + vz*vz
+								-- Square length of this vector ([#4])
+								d = vx*vx + vy*vy + vz*vz
 
-							-- Now do the test
-							if d < t.radius2 then
-								if random() < t.density then
-									data[vmi] = c_leaves
+								-- Now do the test
+								if d < t.radius2 then
+									if random() < t.density then
+										data[vmi] = c_leaves
+										break
+									end
 								end
 							end
 						end
@@ -196,6 +249,15 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 				vmi = vmi + 1
 			end
 		end
+	end
+end
+
+local biome_names = { "grunds" }
+local biomes = {}
+for _, name in pairs(biome_names) do
+	local id = minetest.get_biome_id(name)
+	if id then
+		biomes[id] = name
 	end
 end
 
@@ -220,7 +282,10 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 			local y = grunds.getLevelAtPoint(x, z)
 
 			if y and y > water_level then
-				tree = grunds.make_tree({x=x, y=y, z=z}, treeparam, seed)
+				local biome = minetest.get_biome_data({x=x, y=y, z=z})
+				if biomes[biome.biome] then
+					tree = grunds.make_tree({x=x, y=y, z=z}, treeparam, seed)
+				end
 			end
 
 			-- Bufferize

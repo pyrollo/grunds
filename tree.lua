@@ -44,7 +44,7 @@ local function new_tuft(center, radius, density)
 end
 
 -- Create a new segment and pre-compute as much as possible
-local function new_segment(p1, p2, th1, th2)
+local function new_segment(p1, p2, th1, th2, type)
 	if p1.x == p2.x and p1.y == p2.y and p1.z == p2.z then
 		return nil -- Not a segment
 	end
@@ -53,6 +53,7 @@ local function new_segment(p1, p2, th1, th2)
 		--minp = See below
 		--maxp = See below
 
+		type = type,
 		-- Starting thickness and thickness increment
 		th = th1,
 		thinc = th2 - th1,
@@ -106,7 +107,7 @@ function grunds.make_tree(startpos, params, seed)
 
 	-- TODO : add a counter limitation
 	-- rotax and dirax MUST be normalized
-	local function grow(params, pos, rotax, dirax, length, thickness)
+	local function grow(params, pos, rotax, dirax, length, thickness, type)
 
 		local sum = 0
 		local splits = {}
@@ -162,7 +163,7 @@ function grunds.make_tree(startpos, params, seed)
 					vector.multiply(dirax2, length2))
 
 			-- Create segment
-			local segment = new_segment(pos, pos2, thickness, thickness2)
+			local segment = new_segment(pos, pos2, thickness, thickness2, type)
 			segments[ #segments + 1 ] = segment
 
 			if thickness2 < params.thinckess_min
@@ -174,7 +175,7 @@ function grunds.make_tree(startpos, params, seed)
 				end
 			else
 				-- Branch continues
-				grow(params, pos2, rotax2, dirax2, length2, thickness2)
+				grow(params, pos2, rotax2, dirax2, length2, thickness2, type)
 			end
 
 		end
@@ -200,15 +201,15 @@ function grunds.make_tree(startpos, params, seed)
 
 	-- Segment
 	local pos = vector.add(startpos, vector.multiply(dirax, length))
-	segments[1] = new_segment(startpos, pos, thickness, thickness_top)
+	segments[1] = new_segment(startpos, pos, thickness, thickness_top, "trunk")
 
 	-- Branches and roots
 	---------------------
-	grow(params.branches, pos, rotax, dirax, length, thickness_top)
+	grow(params.branches, pos, rotax, dirax, length, thickness_top, "branch")
 
 	-- Turn upside down
 	dirax = rotate(rotax, pi, { x = 0, y = 1, z = 0})
-	grow(params.roots, startpos, rotax, dirax, length, thickness)
+	grow(params.roots, startpos, rotax, dirax, length, thickness, "root")
 
 	return {
 		params = params,
