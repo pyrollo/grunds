@@ -23,15 +23,15 @@ minetest.register_node("grunds:bark", {
 	description = S("Grund bark"),
 	tiles = {"grunds_bark.png"},
 	is_ground_content = false,
-	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	groups = {tree = 1, choppy = 2, flammable = 2},
 	sounds = default.node_sound_wood_defaults(),
 })
 
-minetest.register_node("grunds:bark_moisty", {
+minetest.register_node("grunds:bark_moisty_1", {
 	description = S("Grund moisty bark"),
-	tiles = {"grunds_bark_moisty_top.png", "grunds_bark.png", "grunds_bark_moisty_side.png"},
+	tiles = {"grunds_bark_moisty_top_1.png", "grunds_bark.png", "grunds_bark_moisty_side_1.png"},
 	is_ground_content = false,
-	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	groups = {tree = 1, choppy = 2, flammable = 2 },
 	sounds = default.node_sound_wood_defaults(),
 })
 
@@ -39,7 +39,7 @@ minetest.register_node("grunds:bark_moisty_2", {
 	description = S("Grund moisty bark"),
 	tiles = {"grunds_bark_moisty_top_2.png", "grunds_bark.png", "grunds_bark_moisty_side_2.png"},
 	is_ground_content = false,
-	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	groups = {tree = 1, choppy = 2, flammable = 2, slippery = 1},
 	sounds = default.node_sound_wood_defaults(),
 })
 
@@ -47,7 +47,7 @@ minetest.register_node("grunds:bark_moisty_3", {
 	description = S("Grund moisty bark"),
 	tiles = {"grunds_bark_moisty_top_3.png", "grunds_bark.png", "grunds_bark_moisty_side_3.png"},
 	is_ground_content = false,
-	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	groups = {tree = 1, choppy = 2, flammable = 2, slippery = 2},
 	sounds = default.node_sound_wood_defaults(),
 })
 
@@ -55,7 +55,7 @@ minetest.register_node("grunds:tree_1", {
 	description = S("Grund wood"),
 	tiles = {"grunds_wood_1.png"},
 	is_ground_content = false,
-	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	groups = {tree = 1, choppy = 2, flammable = 2},
 	sounds = default.node_sound_wood_defaults(),
 })
 
@@ -63,7 +63,7 @@ minetest.register_node("grunds:tree_2", {
 	description = S("Grund wood"),
 	tiles = {"grunds_wood_2.png"},
 	is_ground_content = false,
-	groups = {tree = 1, choppy = 2, oddly_breakable_by_hand = 1, flammable = 2},
+	groups = {tree = 1, choppy = 2, flammable = 2},
 	sounds = default.node_sound_wood_defaults(),
 })
 
@@ -71,11 +71,57 @@ minetest.register_node("grunds:leaves", {
 	description = S("Grunds Leaves"),
 	drawtype = "allfaces_optional",
 	waving = 1,
-	tiles = {"default_leaves.png"},
-	special_tiles = {"default_leaves_simple.png"},
+	tiles = {"grunds_leaves.png"},
 	paramtype = "light",
 	is_ground_content = false,
 	sunlight_propagates = true,
 	groups = {snappy = 3, flammable = 2, leaves = 1},
+	sounds = default.node_sound_leaves_defaults(),
+})
+
+minetest.register_node("grunds:bush", {
+	description = S("Grunds Bush"),
+	drawtype = "allfaces_optional",
+	waving = 1,
+	tiles = {"default_leaves.png"},
+	paramtype = "light",
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2, leaves = 1},
+	sounds = default.node_sound_leaves_defaults(),
+})
+
+minetest.register_node("grunds:vine_middle", {
+	description = S("Grunds Vine"),
+	drawtype = "plantlike",
+	tiles = {"grunds_vine_middle.png"},
+	paramtype = "light",
+	collision_box = {
+		type = "fixed",
+		fixed = {
+			{ -3 / 8, -0.5, -3 / 8, 3 / 8, 0.5, 3 / 8 },
+		},
+	},
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
+	sounds = default.node_sound_leaves_defaults(),
+})
+
+minetest.register_node("grunds:vine_end", {
+	description = S("Grunds Vine"),
+	drawtype = "plantlike",
+	tiles = {"grunds_vine_end.png"},
+	paramtype = "light",
+	collision_box = {
+		type = "fixed",
+		fixed = {
+			{ -3 / 8, -0.5, -3 / 8, 3 / 8, 3 / 8, 3 / 8 },
+		},
+	},
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
+	drop = "grunds:vine_middle",
 	sounds = default.node_sound_leaves_defaults(),
 })

@@ -1,9 +1,12 @@
 local pi, sqrt = math.pi, math.sqrt
-local max, random = math.max, math.random
+local min, max, random, floor, abs = math.min, math.max, math.random, math.floor, math.abs
 
+
+local soil_node = "default:dirt_with_grass"
 local res = minetest.register_biome({
 	name = "grunds",
-	node_top = "default:dirt_with_rainforest_litter",
+--	node_top = "default:dirt_with_rainforest_litter",
+	node_top = soil_node,
 	depth_top = 1,
 	node_filler = "default:dirt",
 	depth_filler = 5,
@@ -12,12 +15,68 @@ local res = minetest.register_biome({
 	node_dungeon = "default:desert_stone_block",
 	node_dungeon_alt = "default:desert_stone_brick",
 	node_dungeon_stair = "stairs:stair_desert_stone_block",
-	y_max = 31000,
+	y_max = 50,
 	y_min = 1,
+	vertical_blend = 8,
 	heat_point = 55,
 	humidity_point = 70,
 })
 
+minetest.register_decoration({
+	name = "grunds:apple_tree",
+	deco_type = "schematic",
+	place_on = {soil_node},
+	sidelen = 16,
+	noise_params = {
+		offset = 0.04,
+		scale = 0.015,
+		spread = {x = 250, y = 250, z = 250},
+		seed = 2,
+		octaves = 3,
+		persist = 0.66
+	},
+	biomes = {"grunds"},
+	y_max = 31000,
+	y_min = 1,
+	schematic = minetest.get_modpath("default") .. "/schematics/apple_tree.mts",
+	flags = "place_center_x, place_center_z",
+	rotation = "random",
+})
+
+minetest.register_decoration({
+	name = "grunds:apple_log",
+	deco_type = "schematic",
+	place_on = {soil_node},
+	place_offset_y = 1,
+	sidelen = 16,
+	noise_params = {
+		offset = 0.0012,
+		scale = 0.0007,
+		spread = {x = 250, y = 250, z = 250},
+		seed = 2,
+		octaves = 3,
+		persist = 0.66
+	},
+	biomes = {"grunds"},
+	y_max = 31000,
+	y_min = 1,
+	schematic = minetest.get_modpath("default") .. "/schematics/apple_log.mts",
+	flags = "place_center_x",
+	rotation = "random",
+})
+
+for i = 1,5 do
+	minetest.register_decoration({
+		name = "grunds:grass_"..i,
+		biomes = {"grunds"},
+		deco_type = "simple",
+		place_on = {soil_node},
+		fill_ratio = 0.2,
+		decoration = "default:grass_"..i,
+	})
+end
+
+--[[
 minetest.register_decoration({
 	name = "grunds:papyrus2",
 	biomes = {"grunds"},
@@ -28,7 +87,7 @@ minetest.register_decoration({
 	decoration = "default:papyrus",
 	height_max = 4,
 })
-
+]]
 local treeradius = 150 -- Have to look around if any far tree has branches in this chunk
 
 local treeparam = {
@@ -106,11 +165,26 @@ local treeparam = {
 
 }
 
+local np_decoration = {
+	scale = 1,
+	spread = {x = 16, y = 16, z = 16},
+	seed = 57347,
+	octaves = 2,
+	persist = 0.5,
+}
+
 c_air = minetest.get_content_id("air")
 c_bark = minetest.get_content_id("grunds:bark")
 c_wood_1 = minetest.get_content_id("grunds:tree_1")
 c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
+c_vine_middle = minetest.get_content_id("grunds:vine_middle")
+c_vine_end    = minetest.get_content_id("grunds:vine_end")
+c_moisty = {
+	minetest.get_content_id("grunds:bark_moisty_1"),
+	minetest.get_content_id("grunds:bark_moisty_2"),
+	minetest.get_content_id("grunds:bark_moisty_3"),
+}
 
 local water_level = tonumber(minetest.get_mapgen_setting("water_level"))
 
@@ -132,13 +206,22 @@ end
 function grunds.render(segments, tufts, minp, maxp, data, area)
 	local maxdiff, t, th, vx, vy, vz, d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
-	local segmentsz, segmentszy, tuftsz, tuftszy
+	local segmentsx, segmentsxz, tuftsx, tuftsxz
+	local last_cid, decoration_len
+
+	-- Preparation
+	local decoration_map = minetest.get_perlin_map(np_decoration, {
+			x = maxp.x - minp.x + 1,
+			y = maxp.y - minp.y + 1,
+			z = maxp.z - minp.z + 1
+		}):get_3d_map({x = minp.x, y = minp.y, z = minp.z})
 
 	for i = 1, #segments do
 		s = segments[i]
 		s.root = s.type == "root" or s.type == "trunk"
 	end
 
+	-- Lets go now
 	for x = minp.x, maxp.x do -- 80 times loop
 		-- Limit to items which intesects z
 		segmentsx = inter_coord(segments, "x", x)
@@ -150,11 +233,14 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 			tuftsxz = inter_coord(tuftsx, "z", z)
 			vmi = area:index(x, maxp.y, z)
 
+			last_cid = nil
+			decoration_len = 0
+
 			for y = maxp.y, minp.y, -1 do -- 5120 times loop
 
 				maxdiff = nil
-
 				local cid = data[vmi]
+				local old_cid = cid
 				local def = minetest.registered_nodes[
 					minetest.get_name_from_content_id(cid)]
 
@@ -213,17 +299,17 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 				-- Maxdiff is the maximum distance from outside
 				if maxdiff then
 					if maxdiff < 1.1 then
-						data[vmi] = c_bark
+						cid = c_bark
 					else
 						if (maxdiff % 2 > 1) then
-							data[vmi] = c_wood_1
+							cid = c_wood_1
 						else
-							data[vmi] = c_wood_2
+							cid = c_wood_2
 						end
 					end
 				else
 					-- Place leaves only in air
-					if data[vmi] == c_air then
+					if cid == c_air then
 						for _, t in ipairs(tuftsxz) do
 							if t.minp.x <= x and t.maxp.x >= x then
 								-- Vector between tuft center and current pos
@@ -237,7 +323,7 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 								-- Now do the test
 								if d < t.radius2 then
 									if random() < t.density then
-										data[vmi] = c_leaves
+										cid = c_leaves
 										break
 									end
 								end
@@ -246,7 +332,60 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 					end
 				end
 
+				-- Decorations
+
+				-- Hanging decorations
+				--TODO: Redo that with better and more flexible rules
+				if cid == c_air then
+					if decoration_len == 1 then
+						cid = c_vine_end
+						decoration_len = 0
+					elseif decoration_len > 1 then
+						cid = c_vine_middle
+						decoration_len = decoration_len - 1
+					else
+						decoration_len = 0
+						if last_cid == c_bark then
+							decoration_len =floor( 5 *(
+						1 - abs(1 - decoration_map[z-minp.z+1][y-minp.y+1][x-minp.x+1])))
+							if decoration_len < 2 or random() > 0.3 then
+								decoration_len = 0
+							else
+								decoration_len = decoration_len + random(1, 5)
+								cid = c_vine_middle
+							end
+						end
+					end
+				end
+
+				-- Top decoration
+				if cid == c_bark and (last_cid == c_air or last_cid == c_leaves) then
+					local moisty = floor(decoration_map[z-minp.z+1][y-minp.y+1][x-minp.x+1]*3 + 1)
+					if moisty > 0 then
+						cid = c_moisty[min(moisty, 3)]
+					end
+				end
+
+				if cid ~= old_cid then
+					data[vmi] = cid
+				end
+				last_cid = cid
 				vmi = vmi - area.ystride
+			end
+
+			-- Hanging decorations continuation
+			if decoration_len > 0 then
+				for _ = 1, decoration_len - 1 do
+					if data[vmi] == c_air then
+						data[vmi] = c_vine_middle
+					else
+						break
+					end
+					vmi = vmi - area.ystride
+				end
+				if data[vmi] == c_air then
+					data[vmi] = c_vine_end
+				end
 			end
 		end
 	end
