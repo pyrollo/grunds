@@ -227,9 +227,6 @@ minetest.register_chatcommand("g", {
 		local minp = { x = center.x - 80, y = center.y - 20, z = center.z - 80 }
 		local maxp = { x = center.x + 80, y = center.y + 160, z = center.z + 80 }
 		local manip = minetest.get_voxel_manip()
-		local e1, e2 = manip:read_from_map(minp, maxp)
-		local area = VoxelArea:new{MinEdge=e1, MaxEdge=e2}
-		local data = manip:get_data()
 		p.stop('voxelmanip')
 
 		p.start('maketree')
@@ -244,10 +241,9 @@ minetest.register_chatcommand("g", {
 		print("Tufts", #tufts)
 
 		p.start('rendering')
-		grunds.render(segments, tufts, minp, maxp, data, area)
+		grunds.render(segments, tufts, minp, maxp, manip)
 		p.stop('rendering')
 		p.start('voxelmanip')
-		manip:set_data(data)
 		manip:write_to_map()
 		p.stop('voxelmanip')
 		p.stop('total')

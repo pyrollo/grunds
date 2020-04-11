@@ -12,9 +12,6 @@ local res = minetest.register_biome({
 	depth_filler = 5,
 	node_riverbed = "default:sand",
 	depth_riverbed = 2,
-	node_dungeon = "default:desert_stone_block",
-	node_dungeon_alt = "default:desert_stone_brick",
-	node_dungeon_stair = "stairs:stair_desert_stone_block",
 	y_max = 50,
 	y_min = 1,
 	vertical_blend = 8,
@@ -28,7 +25,7 @@ minetest.register_decoration({
 	place_on = {soil_node},
 	sidelen = 16,
 	noise_params = {
-		offset = 0.04,
+		offset = 0.026,
 		scale = 0.015,
 		spread = {x = 250, y = 250, z = 250},
 		seed = 2,
@@ -89,6 +86,7 @@ minetest.register_decoration({
 })
 ]]
 local treeradius = 150 -- Have to look around if any far tree has branches in this chunk
+local treedistance = 80 -- Minimum tree distance
 
 local treeparam = {
 
@@ -98,8 +96,8 @@ local treeparam = {
 
 		-- Trunk thickness (value + random) this will give thickness for
 		-- branches and roots
-		thickness = 150,
-		thickness_rnd = 40,
+		thickness = 120,
+		thickness_rnd = 100,
 		thickness_factor = 0.8, -- Factor between base and top thickness
 		thickness_factor_rnd = 0.1,
 
@@ -134,8 +132,8 @@ local treeparam = {
 
 		gravity_effect = -0.2,
 		tuft = {
-			radius = 9,
-			density = 0.1,
+			radius = 8,
+			density = 0.05,
 		}
 	},
 
@@ -154,7 +152,7 @@ local treeparam = {
 
 		thinckess_min = 2,
 
-		gravity_effect = 0.6,
+		gravity_effect = 0.8,
 
 		splits = {
 			{ thickness = 10, random = 5 },
@@ -178,6 +176,7 @@ c_bark = minetest.get_content_id("grunds:bark")
 c_wood_1 = minetest.get_content_id("grunds:tree_1")
 c_wood_2 = minetest.get_content_id("grunds:tree_2")
 c_leaves = minetest.get_content_id("grunds:leaves")
+c_twigs = minetest.get_content_id("grunds:twigs")
 c_vine_middle = minetest.get_content_id("grunds:vine_middle")
 c_vine_end    = minetest.get_content_id("grunds:vine_end")
 c_moisty = {
@@ -203,13 +202,17 @@ local function inter_coord(objects, coord, value)
 	return result
 end
 
-function grunds.render(segments, tufts, minp, maxp, data, area)
+function grunds.render(segments, tufts, minp, maxp, voxelmanip)
 	local maxdiff, t, th, vx, vy, vz, d, dif, s, vmi
 	local sv, sp, svx, svy, svz, spx, spy, spz
 	local segmentsx, segmentsxz, tuftsx, tuftsxz
 	local last_cid, decoration_len
 
 	-- Preparation
+	local node = voxelmanip:get_data()
+	local emin, emax =voxelmanip:get_emerged_area()
+	local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
+
 	local decoration_map = minetest.get_perlin_map(np_decoration, {
 			x = maxp.x - minp.x + 1,
 			y = maxp.y - minp.y + 1,
@@ -239,7 +242,7 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 			for y = maxp.y, minp.y, -1 do -- 5120 times loop
 
 				maxdiff = nil
-				local cid = data[vmi]
+				local cid = node[vmi]
 				local old_cid = cid
 				local def = minetest.registered_nodes[
 					minetest.get_name_from_content_id(cid)]
@@ -294,7 +297,7 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 							end
 						end
 					end
-				end
+				end -- Segments loop
 
 				-- Maxdiff is the maximum distance from outside
 				if maxdiff then
@@ -307,35 +310,46 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 							cid = c_wood_2
 						end
 					end
-				else
-					-- Place leaves only in air
-					if cid == c_air then
-						for _, t in ipairs(tuftsxz) do
-							if t.minp.x <= x and t.maxp.x >= x then
-								-- Vector between tuft center and current pos
-								vx = x - t.center.x
-								vy = y - t.center.y
-								vz = z - t.center.z
+				end
 
-								-- Square length of this vector ([#4])
-								d = vx*vx + vy*vy + vz*vz
+				-- Tufts
+				if cid == c_air then
+					for _, t in ipairs(tuftsxz) do -- 5120 * #segments times loop
 
-								-- Now do the test
-								if d < t.radius2 then
-									if random() < t.density then
-										cid = c_leaves
-										break
-									end
+						if t.minp.x <= x and t.maxp.x >= x then
+							-- Vector between tuft center and current pos
+							vx = x - t.center.x
+							vy = y - t.center.y
+							vz = z - t.center.z
+
+							-- Square length of this vector ([#4])
+							d = vx*vx + vy*vy + vz*vz
+
+							-- Now do the test
+							if d < t.radius2 and random() < t.density then
+								dif = t.radius - sqrt(d)
+								if random() * dif < 2 then
+									cid = c_leaves
+								else
+									cid = c_twigs
 								end
+								break -- No need to check further
 							end
 						end
 					end
 				end
 
 				-- Decorations
+				--TODO: Redo that with better and more flexible rules
 
 				-- Hanging decorations
-				--TODO: Redo that with better and more flexible rules
+
+				-- Terminate last vine if encounter a node
+				if last_cid == c_vine_middle and cid ~= c_air then
+					node[vmi + area.ystride] = c_vine_end
+					decoration_len = 0
+				end
+
 				if cid == c_air then
 					if decoration_len == 1 then
 						cid = c_vine_end
@@ -367,7 +381,7 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 				end
 
 				if cid ~= old_cid then
-					data[vmi] = cid
+					node[vmi] = cid
 				end
 				last_cid = cid
 				vmi = vmi - area.ystride
@@ -376,19 +390,20 @@ function grunds.render(segments, tufts, minp, maxp, data, area)
 			-- Hanging decorations continuation
 			if decoration_len > 0 then
 				for _ = 1, decoration_len - 1 do
-					if data[vmi] == c_air then
-						data[vmi] = c_vine_middle
+					if node[vmi] == c_air then
+						node[vmi] = c_vine_middle
 					else
 						break
 					end
 					vmi = vmi - area.ystride
 				end
-				if data[vmi] == c_air then
-					data[vmi] = c_vine_end
+				if node[vmi] == c_air then
+					node[vmi] = c_vine_end
 				end
 			end
 		end
 	end
+	voxelmanip:set_data(node)
 end
 
 local biome_names = { "grunds" }
@@ -407,7 +422,7 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 
 	-- Choose random candidate positions evenly distributed for trees
 	local points = grunds.distribute({x = minp.x - treeradius, y = minp.z - treeradius},
-		{x = maxp.x + treeradius, y = maxp.z + treeradius}, 100, 1, 20)
+		{x = maxp.x + treeradius, y = maxp.z + treeradius}, treedistance, 1, 40)
 
 	for i = 1, #points do
 		local p = points[i]
@@ -454,10 +469,7 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 
 	-- Now rendering
 	local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-	local data = vm:get_data()
-	local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
-	grunds.render(segments, tufts, minp, maxp, data, area)
-	vm:set_data(data)
+	grunds.render(segments, tufts, minp, maxp, vm)
 	vm:set_lighting( {day=0, night=0})
 	vm:calc_lighting()
 	vm:write_to_map()
