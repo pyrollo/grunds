@@ -33,10 +33,8 @@ local function get_mg_setting(name)
 end
 
 local function get_mg_noiseparams(name)
-	local np = minetest.get_mapgen_setting_noiseparams(""..name) or
+	return minetest.get_mapgen_setting_noiseparams(""..name) or
 		mg_defaults[name]
-	np.seed = np.seed + seed
-	return np
 end
 
 local function get_mg_flags(name)
@@ -64,17 +62,16 @@ local np_mountain        = get_mg_noiseparams("mgv7_np_mountain")
 local function get3dNoise(params, pos3d)
 	-- "The `z` component ... must be must be larger than 1 for 3D noise"
 	local size3d = { x = 1, y = 1, z = 2 }
-	return PerlinNoiseMap(params, size3d):get_3d_map_flat(pos3d)[1]
+	return minetest.get_perlin_map(params, size3d):get_3d_map_flat(pos3d)[1]
 end
 
 local function get2dNoise(params, pos2d)
 	local size2d = { x = 1, y = 1 }
-	return PerlinNoiseMap(params, size2d):get_2d_map_flat(pos2d)[1]
+	return minetest.get_perlin_map(params, size2d):get_2d_map_flat(pos2d)[1]
 end
 
 local function v7_baseTerrainLevelAtPoint(x, y)
 	local pos2d = { x = x, y = y }
-
 	local hselect = get2dNoise(np_height_select, pos2d)
 	hselect = rangelim(hselect, 0, 1);
 	local persist = get2dNoise(np_terrain_persist, pos2d)
