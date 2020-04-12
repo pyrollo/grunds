@@ -10,33 +10,56 @@ local function int(x)
 	return math.floor(x)
 end
 
--- Mapgen parameters
-local mount_zero_level   = minetest.get_mapgen_setting("mgv7_mount_zero_level")
-local water_level        = minetest.get_mapgen_setting("water_level")
+-- Hardcoded default values from mapgen_v7.cpp
+-- These value are needed when minetest.get_mapgen_setting_noiseparams
+-- returns nil (unfortunately happends when map_meta have not been saved yet)
+local mg_defaults = {
+	mgv7_spflags            = "mountains, ridges, caverns",
+	mgv7_mount_zero_level   = 0,
+	mgv7_np_terrain_base    = {offset=4,    scale=70,  spread={x=600,  y=600,  z=600 }, seed=82341, octaves=5, persist=0.6,  lacunarity=2.0},
+	mgv7_np_terrain_alt     = {offset=4,    scale=25,  spread={x=600,  y=600,  z=600 }, seed=5934,  octaves=5, persist=0.6,  lacunarity=2.0},
+	mgv7_np_terrain_persist = {offset=0.6,  scale=0.1, spread={x=2000, y=2000, z=2000}, seed=539,   octaves=3, persist=0.6,  lacunarity=2.0},
+	mgv7_np_height_select   = {offset=-8,   scale=16,  spread={x=500,  y=500,  z=500 }, seed=4213,  octaves=6, persist=0.7,  lacunarity=2.0},
+	mgv7_np_mount_height    = {offset=256,  scale=112, spread={x=1000, y=1000, z=1000}, seed=72449, octaves=3, persist=0.6,  lacunarity=2.0},
+	mgv7_np_ridge_uwater    = {offset=0,    scale=1,   spread={x=1000, y=1000, z=1000}, seed=85039, octaves=5, persist=0.6,  lacunarity=2.0},
+	mgv7_np_mountain        = {offset=-0.6, scale=1,   spread={x=250,  y=350,  z=250 }, seed=5333,  octaves=5, persist=0.63, lacunarity=2.0},
+}
 
-local spflags = {}
-for flag in string.gmatch(minetest.get_mapgen_setting("mgv7_spflags"), "[^ ,]+") do
-	spflags[flag] = true
+local seed = minetest.get_mapgen_setting("seed")
+
+local function get_mg_setting(name)
+	return minetest.get_mapgen_setting(""..name) or
+		mg_defaults[name]
 end
 
--- Noises
-local np_ridge_uwater    = minetest.get_mapgen_setting_noiseparams("mgv7_np_ridge_uwater")
-local np_height_select   = minetest.get_mapgen_setting_noiseparams("mgv7_np_height_select")
-local np_terrain_persist = minetest.get_mapgen_setting_noiseparams("mgv7_np_terrain_persist")
-local np_terrain_base    = minetest.get_mapgen_setting_noiseparams("mgv7_np_terrain_base")
-local np_terrain_alt     = minetest.get_mapgen_setting_noiseparams("mgv7_np_terrain_alt")
-local np_mount_height    = minetest.get_mapgen_setting_noiseparams("mgv7_np_mount_height")
-local np_mountain        = minetest.get_mapgen_setting_noiseparams("mgv7_np_mountain")
+local function get_mg_noiseparams(name)
+	local np = minetest.get_mapgen_setting_noiseparams(""..name) or
+		mg_defaults[name]
+	np.seed = np.seed + seed
+	return np
+end
 
--- May have to set 0 during mapgen
-local seed = minetest.get_mapgen_setting("seed")
-np_height_select.seed   = np_height_select.seed + seed
-np_terrain_persist.seed = np_terrain_persist.seed + seed
-np_terrain_base.seed    = np_terrain_base.seed + seed
-np_terrain_alt.seed     = np_terrain_alt.seed + seed
-np_mount_height.seed    = np_mount_height.seed + seed
-np_mountain.seed        = np_mountain.seed + seed
-np_ridge_uwater.seed    = np_ridge_uwater.seed + seed
+local function get_mg_flags(name)
+	local flags = {}
+	for flag in string.gmatch(get_mg_setting(name), "[^ ,]+") do
+		flags[flag] = true
+	end
+	return flags
+end
+
+-- Mapgen parameters
+local mount_zero_level = get_mg_setting("mgv7_mount_zero_level")
+local water_level      = get_mg_setting("water_level")
+local flags            = get_mg_flags("mgv7_spflags")
+
+-- Noises
+local np_ridge_uwater    = get_mg_noiseparams("mgv7_np_ridge_uwater")
+local np_height_select   = get_mg_noiseparams("mgv7_np_height_select")
+local np_terrain_persist = get_mg_noiseparams("mgv7_np_terrain_persist")
+local np_terrain_base    = get_mg_noiseparams("mgv7_np_terrain_base")
+local np_terrain_alt     = get_mg_noiseparams("mgv7_np_terrain_alt")
+local np_mount_height    = get_mg_noiseparams("mgv7_np_mount_height")
+local np_mountain        = get_mg_noiseparams("mgv7_np_mountain")
 
 local function get3dNoise(params, pos3d)
 	-- "The `z` component ... must be must be larger than 1 for 3D noise"
@@ -82,7 +105,7 @@ end
 
 -- getLevelAtPoint(x, z)
 return function(x, z)
-	if  spflags.ridges then
+	if  flags.ridges then
 		local uwatern = get2dNoise(np_ridge_uwater, { x = x, y = z }) * 2
 		if math.abs(uwatern) <= 0.2 then
 			-- To be accurate on ridges we'll have to manage them
@@ -95,7 +118,7 @@ return function(x, z)
 
 	local y = v7_baseTerrainLevelAtPoint(x, z);
 
-	if not spflags.mountains then
+	if not flags.mountains then
 		return y + 2;
 	end
 
