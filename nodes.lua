@@ -101,10 +101,10 @@ minetest.register_node("grunds:vine_middle", {
 	drawtype = "plantlike",
 	tiles = {"grunds_vine_middle.png"},
 	paramtype = "light",
-	collision_box = {
+	selection_box = {
 		type = "fixed",
 		fixed = {
-			{ -3 / 8, -0.5, -3 / 8, 3 / 8, 0.5, 3 / 8 },
+			{ -5/16, -0.5, -5/16, 5/16, 0.5, 5/16 },
 		},
 	},
 	is_ground_content = false,
@@ -120,10 +120,10 @@ minetest.register_node("grunds:vine_end", {
 	drawtype = "plantlike",
 	tiles = {"grunds_vine_end.png"},
 	paramtype = "light",
-	collision_box = {
+	selection_box = {
 		type = "fixed",
 		fixed = {
-			{ -3 / 8, -0.5, -3 / 8, 3 / 8, 3 / 8, 3 / 8 },
+			{ -5/16, -2/8, -5/16, 5/16, 0.5, 5/16 },
 		},
 	},
 	is_ground_content = false,
@@ -133,4 +133,39 @@ minetest.register_node("grunds:vine_end", {
 	groups = {snappy = 3, flammable = 2},
 	drop = "grunds:vine_middle",
 	sounds = default.node_sound_leaves_defaults(),
+})
+
+minetest.register_node("grunds:red_plant", {
+	description = S("Grunds Red Plant"),
+	drawtype = "plantlike",
+	tiles = {"grunds_red_plant.png"},
+	paramtype = "light",
+	selection_box = {
+		type = "fixed",
+		fixed = {
+			{ -3 / 8, -0.5, -3 / 8, 3 / 8, 0.5, 3 / 8 },
+		},
+	},
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
+})
+
+minetest.register_node("grunds:red_fruit", {
+	description = S("Grunds Red Fruit"),
+	drawtype = "plantlike",
+	tiles = {"grunds_red_fruit.png"},
+	paramtype = "light",
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
+})
+minetest.register_node("grunds:blue_fruit", {
+	description = S("Grunds Blue Fruit"),
+	drawtype = "plantlike",
+	tiles = {"grunds_blue_fruit.png"},
+	paramtype = "light",
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
 })
