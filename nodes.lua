@@ -135,6 +135,26 @@ minetest.register_node("grunds:vine_end", {
 	sounds = default.node_sound_leaves_defaults(),
 })
 
+minetest.register_node("grunds:red_fruit", {
+	description = S("Grunds Red Fruit"),
+	drawtype = "plantlike",
+	tiles = {"grunds_red_fruit.png"},
+	paramtype = "light",
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
+})
+minetest.register_node("grunds:blue_fruit", {
+	description = S("Grunds Blue Fruit"),
+	drawtype = "plantlike",
+	tiles = {"grunds_blue_fruit.png"},
+	paramtype = "light",
+	is_ground_content = false,
+	sunlight_propagates = true,
+	groups = {snappy = 3, flammable = 2},
+})
+
+
 minetest.register_node("grunds:red_plant", {
 	description = S("Grunds Red Plant"),
 	drawtype = "plantlike",
@@ -151,20 +171,19 @@ minetest.register_node("grunds:red_plant", {
 	groups = {snappy = 3, flammable = 2},
 })
 
-minetest.register_node("grunds:red_fruit", {
-	description = S("Grunds Red Fruit"),
+minetest.register_node("grunds:blue_plant", {
+	description = S("Grunds Blue Plant"),
 	drawtype = "plantlike",
-	tiles = {"grunds_red_fruit.png"},
+	tiles = {"grunds_blue_plant.png"},
 	paramtype = "light",
-	is_ground_content = false,
-	sunlight_propagates = true,
-	groups = {snappy = 3, flammable = 2},
-})
-minetest.register_node("grunds:blue_fruit", {
-	description = S("Grunds Blue Fruit"),
-	drawtype = "plantlike",
-	tiles = {"grunds_blue_fruit.png"},
-	paramtype = "light",
+	paramtype2 = "meshoptions",
+	place_param2 = 4,
+	selection_box = {
+		type = "fixed",
+		fixed = {
+			{ -3 / 8, -0.5, -3 / 8, 3 / 8, 0.5, 3 / 8 },
+		},
+	},
 	is_ground_content = false,
 	sunlight_propagates = true,
 	groups = {snappy = 3, flammable = 2},
