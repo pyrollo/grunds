@@ -188,8 +188,6 @@ c_moisty = {
 	minetest.get_content_id("grunds:bark_moisty_3"),
 }
 
-local water_level = tonumber(minetest.get_mapgen_setting("water_level"))
-
 local treebuffer = {}
 local treebuffersize = 50 -- Keep 50 trees in buffer, avoids many computations
 -- TODO: Impement buffering emptying
@@ -489,9 +487,9 @@ minetest.register_on_generated(function (minp, maxp, blockseed)
 		-- Make tree if it is not already buffered
 		if tree == nil then
 			local seed = grunds.baseseed + x + z * 65498
-			local y = grunds.getLevelAtPoint(x, z)
+			local y = grunds.mg.get_level_at_point(x, z)
 
-			if y and y > water_level then
+			if y and y > grunds.mg.water_level then
 				local biome = minetest.get_biome_data({x=x, y=y, z=z})
 				if biomes[biome.biome] then
 					tree = grunds.make_tree({x=x, y=y, z=z}, treeparam, seed)

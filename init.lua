@@ -20,37 +20,17 @@ grunds = {}
 grunds.name = minetest.get_current_modname()
 grunds.path = minetest.get_modpath(minetest.get_current_modname())
 
-function file_exists(path)
-	local f=io.open(path,"r")
-	if f~=nil then
-		io.close(f)
-		return true
-	else
-		return false
-	end
-end
-
--- Load mapgen specific functions and fails if not available
-local mg_name = minetest.get_mapgen_setting("mg_name")
-do
-	mgutil = grunds.path .. "/mgutil/" .. mg_name .. ".lua"
-	if not file_exists(mgutil) then
-		minetest.log("error", "Mod " .. grunds.name .. " is not avialable on mapgen "..mg_name..".")
-		return
-	end
-	grunds.getLevelAtPoint = dofile(mgutil)
-end
-
 -- Big int numbers are truncated by Lua, so adding small int to them results in
 -- the same number. Baseseed will be added with local seeds
 grunds.baseseed = minetest.get_mapgen_setting("seed") % (2^32)
 
-local p = dofile(grunds.path .. "/profile.lua")
+grunds.mg = dofile(grunds.path .. "/mgutils.lua")
 dofile(grunds.path .. "/nodes.lua")
 dofile(grunds.path .. "/distribute.lua")
 dofile(grunds.path .. "/tree.lua")
 dofile(grunds.path .. "/biome.lua")
 dofile(grunds.path .. "/mapgen.lua")
+
 
 local pi, sqrt = math.pi, math.sqrt
 local max, random = math.max, math.random
@@ -196,6 +176,7 @@ example, comparing two distances is the same as comparing their squares.
 
 ]]
 
+local p = dofile(grunds.path .. "/profile.lua")
 
 local water_level = tonumber(minetest.get_mapgen_setting("water_level"))
 
