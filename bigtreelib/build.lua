@@ -1,5 +1,5 @@
 --[[
-	Grunds - Giant trees biome for Minetest
+	Big tree lib - Giant trees library for Minetest
 	(c) Pierre-Yves Rollo
 
 	This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,17 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --]]
 
+-- =============================================================================
+--
+-- TREE CREATION
+--
+-- Here are function that creates a tree made of segment and tufts, according
+-- to registered tree settings.
+--
+-- =============================================================================
+
 local pi, cos, sin, sqrt = math.pi, math.cos, math.sin, math.sqrt
-local max, random = math.max, math.random
+local ceil, floor, max, random = math.ceil, math.floor, math.max, math.random
 
 -- Add two random numbers, make it a bit gaussian
 local function rnd()
@@ -99,8 +108,20 @@ local function rotate(axis, angle, vect)
 	}
 end
 
-function grunds.make_tree(startpos, params, seed)
+-- Creates a tree made out of segments and tufts. This tree can be rendered.
+function btlib.build_tree(startpos, params, seed)
 	if seed then math.randomseed(seed) end
+
+	local c_bark = minetest.get_content_id(params.nodes.bark_node)
+	local c_wood_1 = minetest.get_content_id(params.nodes.tree_1_node)
+	local c_wood_2 = minetest.get_content_id(params.nodes.tree_2_node)
+	local c_moisty_barks = {
+		minetest.get_content_id(params.nodes.moisty_bark_nodes[1]),
+		minetest.get_content_id(params.nodes.moisty_bark_nodes[2]),
+		minetest.get_content_id(params.nodes.moisty_bark_nodes[3]),
+	}
+	local c_leaves = minetest.get_content_id(params.nodes.leave_node)
+	local c_twigs = minetest.get_content_id(params.nodes.twigs_node)
 
 	local segments = {}
 	local tufts = {}
@@ -164,6 +185,11 @@ function grunds.make_tree(startpos, params, seed)
 
 			-- Create segment
 			local segment = new_segment(pos, pos2, thickness, thickness2, type)
+			segment.cid_bark = c_bark
+			segment.cid_wood_1 = c_wood_1
+			segment.cid_wood_2 = c_wood_2
+			segment.cid_moisty_barks = c_moisty_barks
+
 			segments[ #segments + 1 ] = segment
 
 			if thickness2 < params.thinckess_min
@@ -171,6 +197,8 @@ function grunds.make_tree(startpos, params, seed)
 				-- Branch ends
 				if params.tuft then
 					local tuft = new_tuft(pos2, params.tuft.radius, params.tuft.density)
+					tuft.cid_leaves = c_leaves
+					tuft.cid_twigs = c_twigs
 					tufts[ #tufts + 1 ] = tuft
 				end
 			else
@@ -201,7 +229,13 @@ function grunds.make_tree(startpos, params, seed)
 
 	-- Segment
 	local pos = vector.add(startpos, vector.multiply(dirax, length))
-	segments[1] = new_segment(startpos, pos, thickness, thickness_top, "trunk")
+
+	local segment = new_segment(startpos, pos, thickness, thickness_top, "trunk")
+	segment.cid_bark = c_bark
+	segment.cid_wood_1 = c_wood_1
+	segment.cid_wood_2 = c_wood_2
+	segment.cid_moisty_barks = c_moisty_barks
+	segments[1] = segment
 
 	-- Branches and roots
 	---------------------
@@ -218,9 +252,41 @@ function grunds.make_tree(startpos, params, seed)
 	}
 end
 
-function grunds.intersects(b, minp, maxp)
+function btlib.intersects(b, minp, maxp)
 	return
 		b.minp.x <= maxp.x and b.maxp.x >= minp.x and
 		b.minp.y <= maxp.y and b.maxp.y >= minp.y and
 		b.minp.z <= maxp.z and b.maxp.z >= minp.z
+end
+
+local function adjust_minmaxp(minp, maxp, boxes)
+	for _, b in pairs(boxes) do
+		if not minp.x or minp.x > b.minp.x then
+			minp.x = b.minp.x
+		end
+		if not minp.y or minp.y > b.minp.y then
+			minp.y = b.minp.y
+		end
+		if not minp.z or minp.z > b.minp.z then
+			minp.z = b.minp.z
+		end
+		if not maxp.x or maxp.x < b.maxp.x then
+			maxp.x = b.maxp.x
+		end
+		if not maxp.y or maxp.y < b.maxp.y then
+			maxp.y = b.maxp.y
+		end
+		if not maxp.z or maxp.z < b.maxp.z then
+			maxp.z = b.maxp.z
+		end
+	end
+end
+
+function btlib.get_minmaxp(tree)
+	local minp, maxp = {}, {}
+	adjust_minmaxp(minp, maxp, tree.segments or {})
+	adjust_minmaxp(minp, maxp, tree.tufts or {})
+	return
+		{ x = floor(minp.x), y = floor(minp.y), z = floor(minp.z) },
+		{ x = ceil(maxp.x),  y = ceil(maxp.y),  z = ceil(maxp.z) }
 end

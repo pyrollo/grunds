@@ -18,7 +18,7 @@
 
 local enable_test_mg = false -- Set to true only mgutils integration tests. NOT FOR PRODUCTION SERVERS
 
-local mg = {
+mgutils = {
 	name = minetest.get_mapgen_setting("mg_name"),
 	defaults = {},
 	water_level = tonumber(minetest.get_mapgen_setting("water_level")),
@@ -28,43 +28,45 @@ local mg = {
 	get_level_at_point = function(x, z) return nil end,
 }
 
-function mg.get_setting(name)
+function mgutils.get_setting(name)
 	return minetest.get_mapgen_setting(""..name) or
-		mg.defaults[name]
+		mgutils.defaults[name]
 end
 
-function mg.get_flags(name)
+function mgutils.get_flags(name)
 	local flags = {}
-	for flag in string.gmatch(mg.get_setting(name), "[^ ,]+") do
+	for flag in string.gmatch(mgutils.get_setting(name), "[^ ,]+") do
 		flags[flag] = true
 	end
 	return flags
 end
 
-function mg.get_noiseparams(name)
+function mgutils.get_noiseparams(name)
 	return minetest.get_mapgen_setting_noiseparams(""..name) or
-		mg.defaults[name]
+		mgutils.defaults[name]
 end
 
-function mg.get_noise(name)
-	local n = minetest.get_perlin(mg.get_noiseparams(name))
+function mgutils.get_noise(name)
+	local n = minetest.get_perlin(mgutils.get_noiseparams(name))
 	return n
 end
 
 -- Load mapgen specific functions and fails if not available
 local modname = minetest.get_current_modname()
-local mgscript = minetest.get_modpath(modname) .. "/mgutils/mg_" .. mg.name .. ".lua"
+local mgscript = minetest.get_modpath(modname) .. "/mg_" ..
+		mgutils.name .. ".lua"
 
 local mgcode, error = loadfile(mgscript)
 if not mgcode then
 	minetest.log("error", error)
-	minetest.log("error", "Mod " .. modname .. " is not avialable on mapgen "..mg.name.." (mgutils wont work).")
+	minetest.log("error", "Mod " .. modname .. " is not avialable on mapgen " ..
+			mgutils.name.." (mgutils wont work).")
 	return
 end
 
-mgcode(mg)
+mgcode(mgutils)
 
-if enable_test_mg then
+if enable_test_mg and minetest.get_modpath("default") then
 	-- This will create a mese block each 16 nodes, at the altitude given by mgutil
 	-- No block added if altitude not found.
 	-- Mese blocks should be exactly on the top of the map generated terain
@@ -79,8 +81,8 @@ if enable_test_mg then
 
 		for x = math.ceil(minp.x/16)*16, maxp.x, 16 do
 			for z = math.ceil(minp.z/16)*16, maxp.z, 16 do
-				local y = mg.get_level_at_point(x, z)
-				if y then
+				local y = mgutils.get_level_at_point(x, z)
+				if y and y <= maxp.y and y >= minp.y then
 					data[area:index(x, y, z)] = c_mese
 				end
 			end
@@ -89,5 +91,3 @@ if enable_test_mg then
 		vm:write_to_map()
 	end)
 end
-
-return mg

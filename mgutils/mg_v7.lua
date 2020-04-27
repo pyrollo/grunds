@@ -16,9 +16,11 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --]]
 
--- Script argument: table which get stuff from and put stuff to
-local mg = ...
-assert(mg or type(mg) ~= "table", "Expected a table argument")
+--------------------------------------------------------------------------------
+-- Mapgen V7
+--------------------------------------------------------------------------------
+
+mgutils.has_biomes = true
 
 -- Imitation of mapgen_v7.cpp
 -----------------------------
@@ -29,33 +31,29 @@ local function rangelim(v, min, max)
 	return v
 end
 
-local function int(x)
-	return math.floor(x)
-end
-
 -- Hardcoded default values from mapgen_v7.cpp
 -- These value are needed when minetest.get_mapgen_setting_noiseparams
 -- returns nil (unfortunately happends when map_meta have not been saved yet)
-mg.defaults = {
+mgutils.defaults = {
 	mgv7_spflags            = "mountains, ridges, caverns",
 	mgv7_mount_zero_level   = 0,
-	mgv7_np_terrain_base    = {offset=4,    scale=70,  spread={x=600,  y=600,  z=600 }, seed=82341, octaves=5, persist=0.6,  lacunarity=2.0},
-	mgv7_np_terrain_alt     = {offset=4,    scale=25,  spread={x=600,  y=600,  z=600 }, seed=5934,  octaves=5, persist=0.6,  lacunarity=2.0},
-	mgv7_np_terrain_persist = {offset=0.6,  scale=0.1, spread={x=2000, y=2000, z=2000}, seed=539,   octaves=3, persist=0.6,  lacunarity=2.0},
-	mgv7_np_height_select   = {offset=-8,   scale=16,  spread={x=500,  y=500,  z=500 }, seed=4213,  octaves=6, persist=0.7,  lacunarity=2.0},
-	mgv7_np_mount_height    = {offset=256,  scale=112, spread={x=1000, y=1000, z=1000}, seed=72449, octaves=3, persist=0.6,  lacunarity=2.0},
-	mgv7_np_ridge_uwater    = {offset=0,    scale=1,   spread={x=1000, y=1000, z=1000}, seed=85039, octaves=5, persist=0.6,  lacunarity=2.0},
-	mgv7_np_mountain        = {offset=-0.6, scale=1,   spread={x=250,  y=350,  z=250 }, seed=5333,  octaves=5, persist=0.63, lacunarity=2.0},
+	mgv7_np_terrain_base    = {offset=4,    scale=70,  spread={x=600,  y=600,  z=600 }, seed=82341, octaves=5, persist=0.6,  lacunarity=2 },
+	mgv7_np_terrain_alt     = {offset=4,    scale=25,  spread={x=600,  y=600,  z=600 }, seed=5934,  octaves=5, persist=0.6,  lacunarity=2 },
+	mgv7_np_terrain_persist = {offset=0.6,  scale=0.1, spread={x=2000, y=2000, z=2000}, seed=539,   octaves=3, persist=0.6,  lacunarity=2 },
+	mgv7_np_height_select   = {offset=-8,   scale=16,  spread={x=500,  y=500,  z=500 }, seed=4213,  octaves=6, persist=0.7,  lacunarity=2 },
+	mgv7_np_mount_height    = {offset=256,  scale=112, spread={x=1000, y=1000, z=1000}, seed=72449, octaves=3, persist=0.6,  lacunarity=2 },
+	mgv7_np_ridge_uwater    = {offset=0,    scale=1,   spread={x=1000, y=1000, z=1000}, seed=85039, octaves=5, persist=0.6,  lacunarity=2 },
+	mgv7_np_mountain        = {offset=-0.6, scale=1,   spread={x=250,  y=350,  z=250 }, seed=5333,  octaves=5, persist=0.63, lacunarity=2 },
 }
 
 -- Mapgen parameters
-local mount_zero_level = mg.get_setting("mgv7_mount_zero_level")
-local water_level      = mg.get_setting("water_level")
-local flags            = mg.get_flags("mgv7_spflags")
+local mount_zero_level = mgutils.get_setting("mgv7_mount_zero_level")
+local water_level      = mgutils.get_setting("water_level")
+local flags            = mgutils.get_flags("mgv7_spflags")
 
 -- Noise params
-local np_terrain_alt     = mg.get_noiseparams("mgv7_np_terrain_alt")
-local np_terrain_base    = mg.get_noiseparams("mgv7_np_terrain_base")
+local np_terrain_alt     = mgutils.get_noiseparams("mgv7_np_terrain_alt")
+local np_terrain_base    = mgutils.get_noiseparams("mgv7_np_terrain_base")
 
 -- Noises
 local n_height_select
@@ -70,11 +68,11 @@ local function init_noises()
 	if intialized then return end
 	intialized = false
 
-	n_height_select   = mg.get_noise("mgv7_np_height_select")
-	n_terrain_persist = mg.get_noise("mgv7_np_terrain_persist")
-	n_mountain        = mg.get_noise("mgv7_np_mountain")
-	n_mount_height    = mg.get_noise("mgv7_np_mount_height")
-	n_ridge_uwater    = mg.get_noise("mgv7_np_ridge_uwater")
+	n_height_select   = mgutils.get_noise("mgv7_np_height_select")
+	n_terrain_persist = mgutils.get_noise("mgv7_np_terrain_persist")
+	n_mountain        = mgutils.get_noise("mgv7_np_mountain")
+	n_mount_height    = mgutils.get_noise("mgv7_np_mount_height")
+	n_ridge_uwater    = mgutils.get_noise("mgv7_np_ridge_uwater")
 end
 
 local function v7_baseTerrainLevelAtPoint(x, y)
@@ -90,10 +88,10 @@ local function v7_baseTerrainLevelAtPoint(x, y)
 	local height_alt = minetest.get_perlin(np_terrain_alt):get_2d(pos2d)
 
 	if (height_alt > height_base) then
-		return int(height_alt)
+		return math.floor(height_alt)
 	end
 
-	return int((height_base * hselect) +
+	return math.floor((height_base * hselect) +
 			(height_alt * (1 - hselect)))
 end
 
@@ -107,7 +105,7 @@ local function v7_mountainTerrainAtPoint(x, y, z)
 	return mnt_n + density_gradient >= 0;
 end
 
-function mg.get_level_at_point(x, z)
+function mgutils.get_level_at_point(x, z)
 	init_noises()
 
 	if flags.ridges then
