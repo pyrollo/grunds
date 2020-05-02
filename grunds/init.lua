@@ -16,11 +16,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --]]
 
-local modpath = minetest.get_modpath(minetest.get_current_modname())
+grunds = {}
+grunds.name = minetest.get_current_modname()
+grunds.path = minetest.get_modpath(minetest.get_current_modname())
 
-dofile(modpath .. "/distribute.lua")
-dofile(modpath .. "/buffer.lua")
-dofile(modpath .. "/mapgen.lua")
-dofile(modpath .. "/commands/find_biome.lua")
-dofile(modpath .. "/commands/grow_grund.lua")
-dofile(modpath .. "/treesettings.lua")
+dofile(grunds.path .. "/nodes.lua")

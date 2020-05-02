@@ -17,7 +17,7 @@
 --]]
 
 -- support for MT game translation.
-local S = default.get_translator
+local S = minetest.get_translator("grunds")
 
 minetest.register_node("grunds:bark", {
 	description = S("Grund bark"),
@@ -154,6 +154,15 @@ minetest.register_node("grunds:blue_fruit", {
 	groups = {snappy = 3, flammable = 2},
 })
 
+minetest.register_node("grunds:planks", {
+	description = S("Grund Wood Planks"),
+	paramtype2 = "facedir",
+	place_param2 = 0,
+	tiles = {"grunds_plank.png"},
+	is_ground_content = false,
+	groups = {choppy = 2, oddly_breakable_by_hand = 2, flammable = 2, wood = 1},
+	sounds = default.node_sound_wood_defaults(),
+})
 
 minetest.register_node("grunds:red_plant", {
 	description = S("Grunds Red Plant"),
