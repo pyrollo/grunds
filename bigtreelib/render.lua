@@ -50,6 +50,8 @@ local function inter_coord(objects, coord, value)
 	return result
 end
 
+local node = {}
+
 -- Renders segments and tufts from trees between minp and maxp, in voxelmanip
 -- Can be used with mapgen and standard voxel manips.
 function btlib.render(segments, tufts, minp, maxp, voxelmanip)
@@ -61,7 +63,7 @@ function btlib.render(segments, tufts, minp, maxp, voxelmanip)
 	local hanging_cid, hanging_end_cid, decoration
 
 	-- Preparation
-	local node = voxelmanip:get_data()
+	voxelmanip:get_data(node)
 	local emin, emax = voxelmanip:get_emerged_area()
 	local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
 
