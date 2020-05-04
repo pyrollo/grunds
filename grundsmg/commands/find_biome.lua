@@ -19,6 +19,7 @@
 minetest.register_chatcommand("find_biome", {
 	params = "<name>",
 	description = "Find biome area",
+	privs = { privs = server },
 	func = function(name, param)
 		local function testbiome(id, x, y, z)
 			local biome = minetest.get_biome_data({ x = x, y = y, z = z })
