@@ -54,7 +54,7 @@ local intialized = false
 
 local function init_noises()
 	if intialized then return end
-	intialized = false
+	intialized = true
 
 	n_rivers             = mgutils.get_noise("mgvalleys_np_rivers")
 	n_inter_valley_slope = mgutils.get_noise("mgvalleys_np_inter_valley_slope")

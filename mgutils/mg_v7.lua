@@ -66,7 +66,7 @@ local intialized = false
 
 local function init_noises()
 	if intialized then return end
-	intialized = false
+	intialized = true
 
 	n_height_select   = mgutils.get_noise("mgv7_np_height_select")
 	n_terrain_persist = mgutils.get_noise("mgv7_np_terrain_persist")
